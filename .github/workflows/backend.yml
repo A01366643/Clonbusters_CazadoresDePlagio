@@ -1,0 +1,45 @@
+name: Backend-Deploy
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  repository_dispatch:
+    types: [backend_deploy]
+
+jobs:
+  train_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Download dataset
+      run: |
+        mkdir -p data/IR-Plag-Dataset
+        wget -O plagiarism_dataset.zip ${{github.event.client_payload.dataseturl}}
+        unzip plagiarism_dataset.zip -d data/IR-Plag-Dataset
+        
+    - name: Train model
+      run: python backend/model/train.py
+      
+    - name: Build Docker image
+      run: docker build -t ${{secrets.DOCKER_USER}}/plagiarism-detector:${{github.event.client_payload.sha}} .
+      
+    - name: Login to Docker Hub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ secrets.DOCKER_USER }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        
+    - name: Push Docker image
+      run: docker push ${{secrets.DOCKER_USER}}/plagiarism-detector:${{github.event.client_payload.sha}}
