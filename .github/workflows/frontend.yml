@@ -1,0 +1,94 @@
+name: Frontend-Deploy
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '16'
+        
+    - name: Install Dependencies
+      run: |
+        cd frontend
+        npm install
+        npm install lucide-react @radix-ui/react-alert-dialog
+        npm install -D tailwindcss postcss autoprefixer @vitejs/plugin-react
+        npx tailwindcss init -p
+        
+    - name: Create Configuration Files
+      run: |
+        cd frontend
+        
+        # Crear postcss.config.js
+        echo 'export default {
+          plugins: {
+            tailwindcss: {},
+            autoprefixer: {},
+          },
+        }' > postcss.config.js
+        
+        # Crear vite.config.js
+        echo 'import { defineConfig } from "vite"
+        import react from "@vitejs/plugin-react"
+        import path from "path"
+
+        export default defineConfig({
+          plugins: [react()],
+          server: {
+            port: 3000,
+          },
+          resolve: {
+            alias: {
+              "@": path.resolve(__dirname, "./src"),
+              "@components": path.resolve(__dirname, "./src/components"),
+            },
+          },
+          build: {
+            outDir: "dist",
+            sourcemap: true,
+          },
+          proxy: {
+            "/api": {
+              target: "http://localhost:5000",
+              changeOrigin: true,
+              secure: false,
+            },
+          },
+        })' > vite.config.js
+        
+        # Crear estructura de directorios y archivos base
+        mkdir -p src/components
+        
+    - name: Build Frontend
+      run: |
+        cd frontend
+        npm run build
+        
+    - name: Docker Build Frontend
+      run: |
+        docker build -t ${{secrets.DOCKER_USER}}/clonbusters-frontend:${{ github.sha }} ./frontend
+        
+    - name: Docker Login
+      env:
+        DOCKER_USER: ${{secrets.DOCKER_USER}}
+        DOCKER_PASSWORD: ${{secrets.DOCKER_PASSWORD}}
+      run: |
+        docker login -u $DOCKER_USER -p $DOCKER_PASSWORD
+        
+    - name: Docker Push Frontend
+      run: |
+        docker push ${{secrets.DOCKER_USER}}/clonbusters-frontend:${{ github.sha }}
