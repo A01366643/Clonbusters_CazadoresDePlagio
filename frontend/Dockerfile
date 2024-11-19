@@ -16,7 +16,6 @@ RUN npm ci
 
 # Copiar código fuente
 COPY src/ ./src/
-COPY public/ ./public/
 COPY index.html ./
 
 # Construir la aplicación
