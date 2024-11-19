@@ -118,7 +118,7 @@ def main():
     labels = []
 
     # Asegúrate de usar la ruta correcta del dataset
-    dataset = Path("data/IR-Plag-Dataset/")
+    dataset = Path("backend/data/IR-Plag-Dataset/")
     print(f"Cargando dataset desde: {dataset}")
     
     cases = load_dataset(dataset)
