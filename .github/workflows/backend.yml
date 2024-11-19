@@ -21,18 +21,18 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r backend/requirements.txt
         pip install javalang scikit-learn numpy pandas joblib
         
     - name: Verify dataset structure
       run: |
-        ls -R data/IR-Plag-Dataset/
+        ls -R backend/data/IR-Plag-Dataset/
         
     - name: Train model
       run: |
         python model/train.py
       env:
-        DATASET_PATH: "/github/workspace/data/IR-Plag-Dataset/"
+        DATASET_PATH: "/github/workspace/backend/data/IR-Plag-Dataset/"
         
     - name: Save model artifacts
       run: |
