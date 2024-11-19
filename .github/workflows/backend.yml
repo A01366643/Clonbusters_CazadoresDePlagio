@@ -30,7 +30,7 @@ jobs:
         
     - name: Train model
       run: |
-        python model/train.py
+        python backend/model/train.py
       env:
         DATASET_PATH: "/github/workspace/backend/data/IR-Plag-Dataset/"
         
