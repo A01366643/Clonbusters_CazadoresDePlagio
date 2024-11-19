@@ -9,14 +9,14 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r backend/requirements.txt
 RUN pip install javalang scikit-learn numpy pandas joblib
 
 # Copy model and application files
-COPY model_artifacts/*.joblib /app/model/
-COPY model/train.py .
-COPY data/ /app/data/
+COPY model_artifacts/*.joblib /app/backend/model/
+COPY backend/model/train.py .
+COPY data/ /app/backend/data/
 
 # Command to run the model
 CMD ["python", "train.py"]
