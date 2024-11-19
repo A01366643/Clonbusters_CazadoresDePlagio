@@ -13,11 +13,18 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.8'
-        
+    - name: python version
+      run: python --version
+    - name: list directory
+      run: ls -la
+    - name: install packages
+      run: pip install -r backend/requirements.txt
+      
+    - name: download dataset
+      run: wget -O data/heart_disease.csv
+    - name: cat dataset
+      run: cat data/heart_disease.csv   
+      
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
