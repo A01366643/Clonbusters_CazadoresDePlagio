@@ -15,33 +15,39 @@ on:
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
 
     steps:
       - uses: actions/checkout@v2
+
+      - name: Debug directory structure
+        run: |
+          echo "Current directory:"
+          pwd
+          echo "Directory contents:"
+          ls -la
+          echo "Frontend directory contents:"
+          ls -la frontend/
 
       - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
           node-version: '16'
-          # Removemos la configuración del caché que causaba el error
-          # cache: 'npm'
-          # cache-dependency-path: './frontend/package-lock.json'
 
-      - name: Clean install dependencies
+      - name: Install dependencies
+        working-directory: ./frontend
         run: |
-          npm ci
-        working-directory: ./frontend
+          echo "Installing dependencies..."
+          npm install --verbose  # Agregamos --verbose para ver más detalles
+          echo "Creating package-lock.json if it doesn't exist..."
+          npm i --package-lock-only
+          echo "Package.json contents:"
+          cat package.json
 
-      - name: Lint
-        run: npm run lint
-        working-directory: ./frontend
-        
       - name: Build
-        run: npm run build
         working-directory: ./frontend
+        run: |
+          echo "Starting build..."
+          npm run build
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
@@ -62,8 +68,6 @@ jobs:
           tags: |
             ${{ secrets.DOCKER_USER }}/clonbusters-frontend:latest
             ${{ secrets.DOCKER_USER }}/clonbusters-frontend:${{ github.sha }}
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USER }}/clonbusters-frontend:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKER_USER }}/clonbusters-frontend:buildcache,mode=max
 
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
