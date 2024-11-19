@@ -43,11 +43,26 @@ jobs:
           echo "Package.json contents:"
           cat package.json
 
+      - name: Debug project structure
+        working-directory: ./frontend
+        run: |
+          echo "Current directory structure:"
+          ls -la
+          echo "Content of src directory:"
+          ls -la src/
+          echo "Checking for index.html:"
+          ls -la index.html
+
       - name: Build
         working-directory: ./frontend
         run: |
           echo "Starting build..."
-          npm run build
+          # Asegurarse de que estamos en el directorio correcto
+          pwd
+          # Mostrar el contenido de package.json
+          cat package.json
+          # Intentar el build con más información de debug
+          npm run build --verbose
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 
