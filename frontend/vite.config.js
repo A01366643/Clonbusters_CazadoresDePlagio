@@ -4,6 +4,7 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  base: '/ClonBusters_CazadoresDePlagio/', 
   root: '.',  // Asegura que Vite busque en el directorio correcto
   build: {
     outDir: 'dist',
