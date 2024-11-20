@@ -113,8 +113,19 @@ def main():
     
     # Definir rutas correctamente
     current_dir = Path(__file__).parent
+    model_dir = current_dir  # Directorio donde se guardarán los modelos
     dataset_dir = current_dir.parent / "data" / "IR-Plag-Dataset"
-    model_dir = current_dir
+    
+    # Crear el directorio model si no existe
+    model_dir.mkdir(exist_ok=True)
+    
+    print(f"Directorio actual: {current_dir}")
+    print(f"Directorio del modelo: {model_dir}")
+    print(f"Directorio del dataset: {dataset_dir}")
+
+    # Verificar que el dataset existe
+    if not dataset_dir.exists():
+        raise FileNotFoundError(f"No se encontró el directorio del dataset: {dataset_dir}")
     
     print(f"Cargando dataset desde: {dataset_dir}")
     cases = load_dataset(dataset_dir)
@@ -151,11 +162,15 @@ def main():
     vectorizer = CountVectorizer()
     vectorizer.fit(text_samples)
     
-    # Guardar el vectorizador
-    vectorizer_path = model_dir / "vectorizer.joblib"
-    print(f"Guardando vectorizador en: {vectorizer_path}")
-    dump(vectorizer, vectorizer_path)
-    print("¡Vectorizador guardado exitosamente!")
+    # Guardar el vectorizador con manejo de errores
+    try:
+        vectorizer_path = model_dir / "vectorizer.joblib"
+        print(f"Guardando vectorizador en: {vectorizer_path}")
+        dump(vectorizer, vectorizer_path)
+        print("¡Vectorizador guardado exitosamente!")
+    except Exception as e:
+        print(f"Error al guardar el vectorizador: {e}")
+        raise
 
     # Entrenar y guardar el clasificador
     X = np.array(features)
@@ -173,13 +188,26 @@ def main():
     mae = mean_absolute_error(y_test, y_pred)
     print(f'Error Absoluto Medio: {mae}')
 
-    # Guardar el clasificador
-    classifier_path = model_dir / "classifier.joblib"
-    print(f"Guardando clasificador en: {classifier_path}")
-    dump(classifier, classifier_path)
-    print("¡Clasificador guardado exitosamente!")
+    # Guardar el clasificador con manejo de errores
+    try:
+        classifier_path = model_dir / "classifier.joblib"
+        print(f"Guardando clasificador en: {classifier_path}")
+        dump(classifier, classifier_path)
+        print("¡Clasificador guardado exitosamente!")
+    except Exception as e:
+        print(f"Error al guardar el clasificador: {e}")
+        raise
 
-    # Imprimir resumen de archivos guardados
+    # Verificar que los archivos se crearon correctamente
+    print("\nVerificando archivos generados:")
+    vectorizer_path = model_dir / "vectorizer.joblib"
+    classifier_path = model_dir / "classifier.joblib"
+    for file_path in [vectorizer_path, classifier_path]:
+        if file_path.exists():
+            print(f"✅ {file_path.name} creado correctamente")
+        else:
+            print(f"❌ {file_path.name} no se creó")
+            
     print("\nResumen de archivos generados:")
     print(f"Vectorizador: {vectorizer_path}")
     print(f"Clasificador: {classifier_path}")
