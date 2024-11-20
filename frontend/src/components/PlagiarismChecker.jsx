@@ -171,48 +171,49 @@ const PlagiarismChecker = () => {
   
   // Reemplaza la función analyzeCode actual con esta versión:
   const analyzeCode = async () => {
-    setLoading(true);
-    setError('');
-    
+    const formData = new FormData();
+    formData.append('original', originalFile);
+    comparisonFiles.forEach((file) => {
+      formData.append('comparison_files', file);
+    });
+  
     try {
-      const analysisResults = [];
-      
-      // Analizar cada archivo de comparación por separado
-      for (const comparisonFile of comparisonFiles) {
-        const formData = new FormData();
-        formData.append('original', originalFile);
-        formData.append('comparison', comparisonFile);
+      const response = await fetch(`${API_URL}/api/analyze`, {
+        method: 'POST',
+        body: formData,
+      });
   
-        const response = await fetch(`${API_URL}/api/analyze`, {
-          method: 'POST',
-          body: formData
-        });
-  
-        if (!response.ok) {
-          throw new Error(`Error al analizar ${comparisonFile.name}`);
-        }
-  
-        const data = await response.json();
-        
-        // Calcular puntuaciones
-        const tokenOverlap = parseFloat(data.token_similarity || 0);
-        const astSimilarity = parseFloat(data.ast_similarity || 0);
-        const overallScore = (tokenOverlap + astSimilarity) / 2;
-  
-        // Agregar resultado para este archivo
-        analysisResults.push({
-          fileName: comparisonFile.name,
-          tokenOverlap,
-          astSimilarity,
-          overallScore,
-          isPlagiarism: overallScore > 70
-        });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al analizar el código');
       }
   
-      setResults(analysisResults);
+      const data = await response.json();
+      console.log('Datos recibidos del backend:', data);
+      
+      // Asegurar que los valores sean números
+      const tokenSim = parseFloat(data.token_similarity);
+      const astSim = parseFloat(data.ast_similarity);
+      
+      // Calcular el overall score como el promedio
+      const overallScore = (tokenSim + astSim) / 2;
+      
+      const mappedResults = {
+        overallPlagiarismScore: overallScore,
+        isPlagiarism: overallScore > 70,
+        comparisons: comparisonFiles.map((file, index) => ({
+          fileName: file.name,
+          tokenOverlap: data.comparisons[index].token_similarity,
+          astSimilarity: data.comparisons[index].ast_similarity,
+          overallPlagiarismScore: (data.comparisons[index].token_similarity + data.comparisons[index].ast_similarity) / 2
+        }))
+      };
+  
+      console.log('Resultados mapeados:', mappedResults);
+      setResults(mappedResults);
     } catch (error) {
       console.error('Error:', error);
-      setError(`Error al analizar los archivos: ${error.message}`);
+      setError('Error al analizar el código');
     } finally {
       setLoading(false);
     }
