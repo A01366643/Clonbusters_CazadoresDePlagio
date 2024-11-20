@@ -29,6 +29,9 @@ jobs:
       - name: Build
         working-directory: ./frontend
         run: npm run build
+        env:
+          VITE_BASE_URL: '.'
+          VITE_API_URL: 'https://tu-api-publica.com'  # Añade esta línea
       
       - name: Setup Pages
         uses: actions/configure-pages@v3
