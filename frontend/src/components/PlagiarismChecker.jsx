@@ -87,12 +87,12 @@ const ResultsDisplay = ({ results }) => {
 // Componente principal PlagiarismChecker
 const PlagiarismChecker = () => {
   const [originalFile, setOriginalFile] = useState(null);
-  const [comparisonFile, setComparisonFile] = useState(null);
+  const [comparisonFile, setComparisonFile] = useState(null); // Cambiado de array a single file
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [dragActive, setDragActive] = useState({ original: false, comparison: false })
-  const [apiStatus, setApiStatus] = useState('checking'); // Agregar esta línea
+  const [dragActive, setDragActive] = useState({ original: false, comparison: false });
+  const [apiStatus, setApiStatus] = useState('checking');
   
   const originalInputRef = useRef(null);
   const comparisonInputRef = useRef(null);
@@ -138,8 +138,8 @@ const PlagiarismChecker = () => {
     e.preventDefault();
     setDragActive(prev => ({ ...prev, comparison: false }));
     
-    if (e.dataTransfer.files) {
-      handleComparisonFiles(Array.from(e.dataTransfer.files));
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleComparisonFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -152,28 +152,25 @@ const PlagiarismChecker = () => {
     setError('');
   };
 
-  const handleComparisonFiles = (files) => {
-    const invalidFiles = files.filter(file => !file.name.endsWith('.java'));
-    if (invalidFiles.length > 0) {
+  const handleComparisonFile = (file) => {
+    if (!file.name.endsWith('.java')) {
       setError('Por favor, sube solo archivos Java (.java)');
       return;
     }
-    setComparisonFiles(prev => [...prev, ...files]);
+    setComparisonFile(file);
     setError('');
   };
 
-  const removeComparisonFile = (index) => {
-    setComparisonFiles(prev => prev.filter((_, i) => i !== index));
+  const removeComparisonFile = () => {
+    setComparisonFile(null);
   };
 
-  // Primero, agrega esta constante en la parte superior del archivo, después de los imports
   const API_URL = import.meta.env.VITE_API_URL;
   
-  // Reemplaza la función analyzeCode actual con esta versión:
   const analyzeCode = async () => {
     const formData = new FormData();
     formData.append('original', originalFile);
-    formData.append('comparison_file', comparisonFile);
+    formData.append('comparison_file', comparisonFile); // Cambiado para un solo archivo
   
     try {
       const response = await fetch(`${API_URL}/api/analyze`, {
@@ -189,11 +186,8 @@ const PlagiarismChecker = () => {
       const data = await response.json();
       console.log('Datos recibidos del backend:', data);
       
-      // Asegurar que los valores sean números
       const tokenSim = parseFloat(data.token_similarity);
       const astSim = parseFloat(data.ast_similarity);
-      
-      // Calcular el overall score como el promedio
       const overallScore = (tokenSim + astSim) / 2;
       
       const mappedResults = {
