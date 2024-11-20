@@ -194,13 +194,14 @@ const PlagiarismChecker = () => {
       // Mapear los resultados para cada archivo
       const mappedResults = {
         originalFileName: originalFile.name,
-        fileResults: data.results.map(result => ({
+        // Verificamos que data.results existe antes de mapearlo
+        fileResults: data.results ? data.results.map(result => ({
           fileName: result.fileName,
           tokenOverlap: parseFloat(result.token_similarity),
           astSimilarity: parseFloat(result.ast_similarity),
           overallScore: (parseFloat(result.token_similarity) + parseFloat(result.ast_similarity)) / 2,
           isPlagiarism: ((parseFloat(result.token_similarity) + parseFloat(result.ast_similarity)) / 2) > 70
-        }))
+        })) : []
       };
   
       console.log('Resultados mapeados:', mappedResults);
