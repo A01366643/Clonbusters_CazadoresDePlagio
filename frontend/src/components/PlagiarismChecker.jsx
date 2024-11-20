@@ -54,16 +54,7 @@ const ResultsDisplay = ({ results }) => {
           </div>
           <p className="text-sm text-gray-600">{results.astSimilarity}%</p>
         </div>
-        <div className="space-y-2">
-          <p className="font-medium">Similitud Semántica</p>
-          <div className="w-full bg-gray-200 rounded-full h-2.5">
-            <div 
-              className="bg-indigo-600 h-2.5 rounded-full transition-all duration-500" 
-              style={{ width: `${results.semanticSimilarity}%` }}
-            />
-          </div>
-          <p className="text-sm text-gray-600">{results.semanticSimilarity}%</p>
-        </div>
+        
         <div className="space-y-2">
           <p className="font-medium">Puntuación Global</p>
           <div className="w-full bg-gray-200 rounded-full h-2.5">
@@ -203,7 +194,6 @@ const PlagiarismChecker = () => {
       const mappedResults = {
         tokenOverlap: data.token_similarity,
         astSimilarity: data.ast_similarity,
-        semanticSimilarity: data.semantic_similarity,
         overallPlagiarismScore: data.overall_score,
         isPlagiarism: data.is_plagiarism
       };
