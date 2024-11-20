@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, FileText, AlertCircle, AlertTriangle, Check } from 'lucide-react';
 
 // Componente ResultsDisplay integrado
@@ -100,10 +100,29 @@ const PlagiarismChecker = () => {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [dragActive, setDragActive] = useState({ original: false, comparison: false });
+  const [dragActive, setDragActive] = useState({ original: false, comparison: false })
+  const [apiStatus, setApiStatus] = useState('checking'); // Agregar esta línea
   
   const originalInputRef = useRef(null);
   const comparisonInputRef = useRef(null);
+
+  useEffect(() => {
+    const checkApiStatus = async () => {
+      try {
+        const response = await fetch(`${API_URL}/health`);
+        if (response.ok) {
+          setApiStatus('ready');
+        } else {
+          setApiStatus('error');
+        }
+      } catch (err) {
+        console.error('Error checking API status:', err);
+        setApiStatus('error');
+      }
+    };
+
+    checkApiStatus();
+  }, []);
 
   const handleDrag = (e, type) => {
     e.preventDefault();
@@ -210,6 +229,12 @@ const PlagiarismChecker = () => {
 
   return (
     <div className="bg-white p-8 rounded-lg shadow-lg">
+      {apiStatus === 'error' && (
+        <div className="mt-4 p-4 bg-red-50 text-red-600 rounded-lg flex items-center gap-2">
+          <AlertCircle className="h-5 w-5" />
+          No se puede conectar con el servicio de análisis
+        </div>
+      )}
       <div className="grid md:grid-cols-2 gap-6">
         {/* Área para código original */}
         <div>
@@ -329,10 +354,10 @@ const PlagiarismChecker = () => {
       <div className="mt-6 flex justify-center">
         <button
           onClick={analyzeCode}
-          disabled={loading}
+          disabled={loading || apiStatus !== 'ready'}
           className={`
             flex items-center gap-2 px-6 py-3 rounded-lg
-            ${loading 
+            ${loading || apiStatus !== 'ready'
               ? 'bg-gray-400 cursor-not-allowed' 
               : 'bg-blue-600 hover:bg-blue-700'
             }
