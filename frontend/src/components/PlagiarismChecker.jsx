@@ -173,49 +173,46 @@ const PlagiarismChecker = () => {
   const analyzeCode = async () => {
     setLoading(true);
     setError('');
-    const results = [];
-  
+    
     try {
-      // Analizar cada archivo de comparación individualmente
+      const analysisResults = [];
+      
+      // Analizar cada archivo de comparación por separado
       for (const comparisonFile of comparisonFiles) {
         const formData = new FormData();
         formData.append('original', originalFile);
-        formData.append('comparison_files', comparisonFile);
+        formData.append('comparison', comparisonFile);
   
         const response = await fetch(`${API_URL}/api/analyze`, {
           method: 'POST',
-          body: formData,
+          body: formData
         });
   
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.detail || 'Error al analizar el código');
+          throw new Error(`Error al analizar ${comparisonFile.name}`);
         }
   
         const data = await response.json();
         
-        // Asegurar que los valores sean números
-        const tokenSim = parseFloat(data.token_similarity);
-        const astSim = parseFloat(data.ast_similarity);
-        
-        // Calcular el overall score como el promedio
-        const overallScore = (tokenSim + astSim) / 2;
-        
-        results.push({
+        // Calcular puntuaciones
+        const tokenOverlap = parseFloat(data.token_similarity || 0);
+        const astSimilarity = parseFloat(data.ast_similarity || 0);
+        const overallScore = (tokenOverlap + astSimilarity) / 2;
+  
+        // Agregar resultado para este archivo
+        analysisResults.push({
           fileName: comparisonFile.name,
-          results: {
-            tokenOverlap: tokenSim,
-            astSimilarity: astSim,
-            overallPlagiarismScore: overallScore,
-            isPlagiarism: overallScore > 70 
-          }
+          tokenOverlap,
+          astSimilarity,
+          overallScore,
+          isPlagiarism: overallScore > 70
         });
       }
   
-      setResults(results);
+      setResults(analysisResults);
     } catch (error) {
       console.error('Error:', error);
-      setError('Error al analizar el código');
+      setError(`Error al analizar los archivos: ${error.message}`);
     } finally {
       setLoading(false);
     }
