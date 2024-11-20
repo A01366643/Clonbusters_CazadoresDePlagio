@@ -1,7 +1,9 @@
-import React, { useState, useRef } from 'react';
-import { Upload, X, FileText, AlertCircle, AlertTriangle, Check } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Upload, X, FileText, AlertTriangle, Check, AlertCircle } from 'lucide-react';
 
-// Componente ResultsDisplay integrado
+// Definimos la URL base directamente - ajusta esto según tu entorno
+const API_URL = 'http://localhost:8000';
+
 const ResultsDisplay = ({ results }) => {
   if (!results) return null;
   
@@ -39,45 +41,45 @@ const ResultsDisplay = ({ results }) => {
           <div className="w-full bg-gray-200 rounded-full h-2.5">
             <div 
               className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
-              style={{ width: `${results.tokenOverlap}%` }}
+              style={{ width: `${results.token_similarity}%` }}
             />
           </div>
-          <p className="text-sm text-gray-600">{results.tokenOverlap}%</p>
+          <p className="text-sm text-gray-600">{results.token_similarity}%</p>
         </div>
         <div className="space-y-2">
           <p className="font-medium">Similitud de Estructura (AST)</p>
           <div className="w-full bg-gray-200 rounded-full h-2.5">
             <div 
               className="bg-purple-600 h-2.5 rounded-full transition-all duration-500" 
-              style={{ width: `${results.astSimilarity}%` }}
+              style={{ width: `${results.ast_similarity}%` }}
             />
           </div>
-          <p className="text-sm text-gray-600">{results.astSimilarity}%</p>
+          <p className="text-sm text-gray-600">{results.ast_similarity}%</p>
         </div>
         <div className="space-y-2">
           <p className="font-medium">Similitud Semántica</p>
           <div className="w-full bg-gray-200 rounded-full h-2.5">
             <div 
               className="bg-indigo-600 h-2.5 rounded-full transition-all duration-500" 
-              style={{ width: `${results.semanticSimilarity}%` }}
+              style={{ width: `${results.semantic_similarity}%` }}
             />
           </div>
-          <p className="text-sm text-gray-600">{results.semanticSimilarity}%</p>
+          <p className="text-sm text-gray-600">{results.semantic_similarity}%</p>
         </div>
         <div className="space-y-2">
           <p className="font-medium">Puntuación Global</p>
           <div className="w-full bg-gray-200 rounded-full h-2.5">
             <div 
-              className={`h-2.5 rounded-full transition-all duration-500 ${getProgressBarColor(results.overallPlagiarismScore)}`}
-              style={{ width: `${results.overallPlagiarismScore}%` }}
+              className={`h-2.5 rounded-full transition-all duration-500 ${getProgressBarColor(results.overall_score)}`}
+              style={{ width: `${results.overall_score}%` }}
             />
           </div>
-          <p className={`text-sm font-medium ${getScoreColor(results.overallPlagiarismScore)}`}>
-            {results.overallPlagiarismScore}%
+          <p className={`text-sm font-medium ${getScoreColor(results.overall_score)}`}>
+            {results.overall_score}%
           </p>
         </div>
       </div>
-      {results.isPlagiarism && (
+      {results.is_plagiarism && (
         <div className="mt-6 p-4 bg-red-50 text-red-700 rounded-lg">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" />
@@ -93,17 +95,36 @@ const ResultsDisplay = ({ results }) => {
   );
 };
 
-// Componente principal PlagiarismChecker
 const PlagiarismChecker = () => {
   const [originalFile, setOriginalFile] = useState(null);
   const [comparisonFiles, setComparisonFiles] = useState([]);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [apiStatus, setApiStatus] = useState('checking');
   const [dragActive, setDragActive] = useState({ original: false, comparison: false });
   
   const originalInputRef = useRef(null);
   const comparisonInputRef = useRef(null);
+
+  // Verificar que el backend esté funcionando
+  useEffect(() => {
+    const checkApiStatus = async () => {
+      try {
+        const response = await fetch(`${API_URL}/health`);
+        if (response.ok) {
+          const data = await response.json();
+          setApiStatus(data.models_loaded ? 'ready' : 'no-models');
+        } else {
+          setApiStatus('error');
+        }
+      } catch (err) {
+        setApiStatus('error');
+      }
+    };
+
+    checkApiStatus();
+  }, []);
 
   const handleDrag = (e, type) => {
     e.preventDefault();
@@ -162,31 +183,73 @@ const PlagiarismChecker = () => {
       return;
     }
 
+    if (apiStatus !== 'ready') {
+      setError('El servicio de análisis no está disponible');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      // Aquí iría la lógica real para enviar los archivos al backend
-      setTimeout(() => {
-        setResults({
-          tokenOverlap: 75.5,
-          astSimilarity: 82.3,
-          semanticSimilarity: 79.8,
-          overallPlagiarismScore: 79.2,
-          isPlagiarism: true
-        });
-        setLoading(false);
-      }, 1500);
+      const formData = new FormData();
+      formData.append('original', originalFile);
+      comparisonFiles.forEach((file) => {
+        formData.append('comparison_files', file);
+      });
+
+      const response = await fetch(`${API_URL}/api/analyze`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al analizar el código');
+      }
+
+      const data = await response.json();
+      setResults(data);
     } catch (err) {
-      setError('Error al analizar el código');
+      setError(`Error: ${err.message}`);
+    } finally {
       setLoading(false);
+    }
+  };
+
+  const renderApiStatus = () => {
+    switch (apiStatus) {
+      case 'checking':
+        return (
+          <div className="text-blue-600 text-sm flex items-center gap-2 mb-4">
+            <AlertCircle className="h-4 w-4" />
+            Verificando conexión con el servicio...
+          </div>
+        );
+      case 'error':
+        return (
+          <div className="text-red-600 text-sm flex items-center gap-2 mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            No se puede conectar con el servicio de análisis
+          </div>
+        );
+      case 'no-models':
+        return (
+          <div className="text-yellow-600 text-sm flex items-center gap-2 mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            Servicio conectado pero modelos no disponibles
+          </div>
+        );
+      default:
+        return null;
     }
   };
 
   return (
     <div className="bg-white p-8 rounded-lg shadow-lg">
+      {renderApiStatus()}
+      
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Área para código original */}
         <div>
           <h2 className="text-xl font-semibold mb-4">Código Original</h2>
           <div
@@ -196,8 +259,9 @@ const PlagiarismChecker = () => {
               transition-colors duration-200 ease-in-out
               flex flex-col items-center justify-center
               cursor-pointer
+              ${apiStatus !== 'ready' ? 'opacity-50' : ''}
             `}
-            onClick={() => originalInputRef.current?.click()}
+            onClick={() => apiStatus === 'ready' && originalInputRef.current?.click()}
             onDragEnter={e => handleDrag(e, 'original')}
             onDragLeave={e => handleDrag(e, 'original')}
             onDragOver={e => handleDrag(e, 'original')}
@@ -209,6 +273,7 @@ const PlagiarismChecker = () => {
               className="hidden"
               accept=".java"
               onChange={e => handleOriginalFile(e.target.files[0])}
+              disabled={apiStatus !== 'ready'}
             />
             
             {originalFile ? (
@@ -221,6 +286,7 @@ const PlagiarismChecker = () => {
                     setOriginalFile(null);
                   }}
                   className="p-1 hover:bg-gray-100 rounded-full"
+                  disabled={apiStatus !== 'ready'}
                 >
                   <X className="h-4 w-4 text-gray-500" />
                 </button>
@@ -228,15 +294,15 @@ const PlagiarismChecker = () => {
             ) : (
               <>
                 <Upload className="h-10 w-10 text-blue-500 mb-2" />
-                <p className="text-sm text-gray-600">
-                  Arrastra y suelta tu archivo Java aquí o haz clic para seleccionarlo
+                <p className="text-sm text-gray-600 text-center">
+                  Arrastra y suelta tu archivo Java aquí<br />
+                  o haz clic para seleccionarlo
                 </p>
               </>
             )}
           </div>
         </div>
         
-        {/* Área para códigos a comparar */}
         <div>
           <h2 className="text-xl font-semibold mb-4">Códigos a Comparar</h2>
           <div
@@ -245,8 +311,9 @@ const PlagiarismChecker = () => {
               ${dragActive.comparison ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}
               transition-colors duration-200 ease-in-out
               overflow-y-auto
+              ${apiStatus !== 'ready' ? 'opacity-50' : ''}
             `}
-            onClick={() => comparisonInputRef.current?.click()}
+            onClick={() => apiStatus === 'ready' && comparisonInputRef.current?.click()}
             onDragEnter={e => handleDrag(e, 'comparison')}
             onDragLeave={e => handleDrag(e, 'comparison')}
             onDragOver={e => handleDrag(e, 'comparison')}
@@ -259,6 +326,7 @@ const PlagiarismChecker = () => {
               accept=".java"
               multiple
               onChange={e => handleComparisonFiles(Array.from(e.target.files))}
+              disabled={apiStatus !== 'ready'}
             />
             
             {comparisonFiles.length > 0 ? (
@@ -275,6 +343,7 @@ const PlagiarismChecker = () => {
                         removeComparisonFile(index);
                       }}
                       className="p-1 hover:bg-gray-100 rounded-full"
+                      disabled={apiStatus !== 'ready'}
                     >
                       <X className="h-4 w-4 text-gray-500" />
                     </button>
@@ -304,24 +373,8 @@ const PlagiarismChecker = () => {
       <div className="mt-6 flex justify-center">
         <button
           onClick={analyzeCode}
-          disabled={loading}
+          disabled={loading || apiStatus !== 'ready'}
           className={`
             flex items-center gap-2 px-6 py-3 rounded-lg
-            ${loading 
-              ? 'bg-gray-400 cursor-not-allowed' 
-              : 'bg-blue-600 hover:bg-blue-700'
-            }
-            text-white font-semibold transition-colors
-          `}
-        >
-          <Upload className="h-5 w-5" />
-          {loading ? 'Analizando...' : 'Analizar Código'}
-        </button>
-      </div>
-
-      {results && <ResultsDisplay results={results} />}
-    </div>
-  );
-};
-
-export default PlagiarismChecker;
+            ${loading || apiStatus !== 'ready'
+              ? '
