@@ -22,3 +22,12 @@ COPY backend/data/ /app/backend/data/
 
 # Command to run the model
 CMD ["python", "/app/backend/model/train.py"]
+
+# Instalar FastAPI y uvicorn
+RUN pip install fastapi uvicorn
+
+# Copiar el archivo app.py
+COPY backend/app.py /app/backend/
+
+# Cambiar el comando para ejecutar la API
+CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000"]
