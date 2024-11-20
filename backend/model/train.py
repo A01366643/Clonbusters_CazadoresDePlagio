@@ -8,6 +8,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import javalang
 from joblib import dump
 
+
 def load_dataset(path):
     full_paths = list(path.iterdir())
     return full_paths
