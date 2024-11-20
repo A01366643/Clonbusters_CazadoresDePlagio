@@ -170,7 +170,7 @@ const PlagiarismChecker = () => {
   const API_URL = import.meta.env.VITE_API_URL;
   
   // Reemplaza la función analyzeCode actual con esta versión:
-   const analyzeCode = async () => {
+  const analyzeCode = async () => {
     const formData = new FormData();
     formData.append('original', originalFile);
     comparisonFiles.forEach((file) => {
@@ -191,17 +191,18 @@ const PlagiarismChecker = () => {
       const data = await response.json();
       console.log('Datos recibidos del backend:', data);
       
-      // Mapear los resultados para cada archivo
+      // Asegurar que los valores sean números
+      const tokenSim = parseFloat(data.token_similarity);
+      const astSim = parseFloat(data.ast_similarity);
+      
+      // Calcular el overall score como el promedio
+      const overallScore = (tokenSim + astSim) / 2;
+      
       const mappedResults = {
-        originalFileName: originalFile.name,
-        // Verificamos que data.results existe antes de mapearlo
-        fileResults: data.results ? data.results.map(result => ({
-          fileName: result.fileName,
-          tokenOverlap: parseFloat(result.token_similarity),
-          astSimilarity: parseFloat(result.ast_similarity),
-          overallScore: (parseFloat(result.token_similarity) + parseFloat(result.ast_similarity)) / 2,
-          isPlagiarism: ((parseFloat(result.token_similarity) + parseFloat(result.ast_similarity)) / 2) > 70
-        })) : []
+        tokenOverlap: tokenSim,
+        astSimilarity: astSim,
+        overallPlagiarismScore: overallScore,
+        isPlagiarism: overallScore > 70 
       };
   
       console.log('Resultados mapeados:', mappedResults);
@@ -213,7 +214,7 @@ const PlagiarismChecker = () => {
       setLoading(false);
     }
   };
-  
+
   return (
     <div className="bg-white p-8 rounded-lg shadow-lg">
       {apiStatus === 'error' && (
