@@ -370,11 +370,16 @@ const PlagiarismChecker = () => {
         </div>
       )}
 
-      <div className="mt-6 flex justify-center">
-        <button
-          onClick={analyzeCode}
-          disabled={loading || apiStatus !== 'ready'}
-          className={`
-            flex items-center gap-2 px-6 py-3 rounded-lg
-            ${loading || apiStatus !== 'ready'
-              ? '
+      <button
+        onClick={analyzeCode}
+        disabled={loading || apiStatus !== 'ready'}
+        className={`
+          flex items-center gap-2 px-6 py-3 rounded-lg
+          ${loading || apiStatus !== 'ready' 
+            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            : 'bg-blue-600 text-white hover:bg-blue-700'
+          }
+        `}
+      >
+        {loading ? 'Analizando...' : 'Analizar Código'}
+      </button>
