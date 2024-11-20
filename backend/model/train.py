@@ -82,31 +82,12 @@ def calculate_ast_similarity(file1, file2):
     return cosine_similarity(vec1, vec2)[0][0]
 
 
-def calculate_semantic_similarity(file1, file2):
-    with open(file1, 'r') as f:
-        text1 = f.read()
-    with open(file2, 'r') as f:
-        text2 = f.read()
-
-    vectorizer = CountVectorizer().fit([text1, text2])
-    vec1 = vectorizer.transform([text1]).toarray()
-    vec2 = vectorizer.transform([text2]).toarray()
-
-    return cosine_similarity(vec1, vec2)[0][0]
-
-
 def get_label(original_file, file):
     token_overlap = calculate_token_overlap(original_file, file)
     ast_similarity = calculate_ast_similarity(original_file, file)
-    semantic_similarity = calculate_semantic_similarity(original_file, file)
-
-    if semantic_similarity > 0.8:
-        return 1
-
-    if semantic_similarity < 0.2:
-        return 0
-
-    plagiarism_percentage = (semantic_similarity + token_overlap + ast_similarity) / 3.0 * 100
+    
+    # Calcular el porcentaje de plagio basado solo en tokens y AST
+    plagiarism_percentage = (token_overlap + ast_similarity) / 2.0 * 100
     return plagiarism_percentage
 
 def main():
@@ -150,12 +131,12 @@ def main():
             print(f"Analizando archivo: {file}")
             token_overlap = calculate_token_overlap(original_file, file)
             ast_similarity = calculate_ast_similarity(original_file, file)
-            semantic_similarity = calculate_semantic_similarity(original_file, file)
             
             with open(file, 'r') as f:
                 text_samples.append(f.read())
 
-            features.append([token_overlap, ast_similarity, semantic_similarity])
+            # Solo incluir token_overlap y ast_similarity en las características
+            features.append([token_overlap, ast_similarity])
             labels.append(get_label(original_file, file))
 
     # Entrenar y guardar el vectorizador
