@@ -1,24 +1,28 @@
-FROM python:3.8-slim
+FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install Java (required for javalang)
+# Instalar dependencias del sistema
 RUN apt-get update && \
     apt-get install -y default-jdk && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install dependencies
-COPY backend/requirements.txt .
+# Copiar requerimientos e instalar dependencias
+COPY backend/requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install javalang scikit-learn numpy pandas joblib fastapi uvicorn
 
-# Create necessary directories and copy files
+# Crear directorio para modelos
+RUN mkdir -p /app/backend/model
+
+# Copiar los archivos del modelo
+COPY backend/model/*.joblib /app/backend/model/
+
+# Copiar el resto del código
 COPY backend/ /app/backend/
-COPY model_artifacts/*.joblib /app/backend/model/
 
-# Expose port
+# Puerto por defecto
 EXPOSE 8000
 
-# Command to run the API
+# Comando para ejecutar la aplicación
 CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000"]
