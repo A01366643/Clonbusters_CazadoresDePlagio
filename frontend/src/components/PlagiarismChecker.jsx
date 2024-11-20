@@ -87,7 +87,7 @@ const ResultsDisplay = ({ results }) => {
 // Componente principal PlagiarismChecker
 const PlagiarismChecker = () => {
   const [originalFile, setOriginalFile] = useState(null);
-  const [comparisonFiles, setComparisonFiles] = useState([]);
+  const [comparisonFile, setComparisonFile] = useState(null);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -173,9 +173,7 @@ const PlagiarismChecker = () => {
   const analyzeCode = async () => {
     const formData = new FormData();
     formData.append('original', originalFile);
-    comparisonFiles.forEach((file) => {
-      formData.append('comparison_files', file);
-    });
+    formData.append('comparison_file', comparisonFile);
   
     try {
       const response = await fetch(`${API_URL}/api/analyze`, {
@@ -274,15 +272,16 @@ const PlagiarismChecker = () => {
           </div>
         </div>
         
-        {/* Área para códigos a comparar */}
+        {/* Área para código a comparar */}
         <div>
-          <h2 className="text-xl font-semibold mb-4">Códigos a Comparar</h2>
+          <h2 className="text-xl font-semibold mb-4">Código a Comparar</h2>
           <div
             className={`
               w-full h-64 border-2 border-dashed rounded-lg
               ${dragActive.comparison ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}
               transition-colors duration-200 ease-in-out
-              overflow-y-auto
+              flex flex-col items-center justify-center
+              cursor-pointer
             `}
             onClick={() => comparisonInputRef.current?.click()}
             onDragEnter={e => handleDrag(e, 'comparison')}
@@ -295,38 +294,31 @@ const PlagiarismChecker = () => {
               type="file"
               className="hidden"
               accept=".java"
-              multiple
-              onChange={e => handleComparisonFiles(Array.from(e.target.files))}
+              onChange={e => handleComparisonFile(e.target.files[0])}
             />
             
-            {comparisonFiles.length > 0 ? (
-              <div className="p-4 space-y-2">
-                {comparisonFiles.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                    <div className="flex items-center gap-2">
-                      <FileText className="text-blue-500" />
-                      <span className="font-medium">{file.name}</span>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeComparisonFile(index);
-                      }}
-                      className="p-1 hover:bg-gray-100 rounded-full"
-                    >
-                      <X className="h-4 w-4 text-gray-500" />
-                    </button>
-                  </div>
-                ))}
+            {comparisonFile ? (
+              <div className="flex items-center gap-2 p-4">
+                <FileText className="text-blue-500" />
+                <span className="font-medium">{comparisonFile.name}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeComparisonFile();
+                  }}
+                  className="p-1 hover:bg-gray-100 rounded-full"
+                >
+                  <X className="h-4 w-4 text-gray-500" />
+                </button>
               </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center">
+              <>
                 <Upload className="h-10 w-10 text-blue-500 mb-2" />
                 <p className="text-sm text-gray-600 text-center">
-                  Arrastra y suelta tus archivos Java aquí<br />
-                  o haz clic para seleccionarlos
+                  Arrastra y suelta tu archivo Java aquí<br />
+                  o haz clic para seleccionarlo
                 </p>
-              </div>
+              </>
             )}
           </div>
         </div>
@@ -352,7 +344,6 @@ const PlagiarismChecker = () => {
             text-white font-semibold transition-colors
           `}
         >
-          <Upload className="h-5 w-5" />
           {loading ? 'Analizando...' : 'Analizar Código'}
         </button>
       </div>
