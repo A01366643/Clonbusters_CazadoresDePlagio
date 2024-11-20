@@ -171,42 +171,48 @@ const PlagiarismChecker = () => {
   
   // Reemplaza la función analyzeCode actual con esta versión:
   const analyzeCode = async () => {
-    const formData = new FormData();
-    formData.append('original', originalFile);
-    comparisonFiles.forEach((file) => {
-      formData.append('comparison_files', file);
-    });
+    setLoading(true);
+    setError('');
+    const results = [];
   
     try {
-      const response = await fetch(`${API_URL}/api/analyze`, {
-        method: 'POST',
-        body: formData,
-      });
+      // Analizar cada archivo de comparación individualmente
+      for (const comparisonFile of comparisonFiles) {
+        const formData = new FormData();
+        formData.append('original', originalFile);
+        formData.append('comparison_files', comparisonFile);
   
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Error al analizar el código');
+        const response = await fetch(`${API_URL}/api/analyze`, {
+          method: 'POST',
+          body: formData,
+        });
+  
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Error al analizar el código');
+        }
+  
+        const data = await response.json();
+        
+        // Asegurar que los valores sean números
+        const tokenSim = parseFloat(data.token_similarity);
+        const astSim = parseFloat(data.ast_similarity);
+        
+        // Calcular el overall score como el promedio
+        const overallScore = (tokenSim + astSim) / 2;
+        
+        results.push({
+          fileName: comparisonFile.name,
+          results: {
+            tokenOverlap: tokenSim,
+            astSimilarity: astSim,
+            overallPlagiarismScore: overallScore,
+            isPlagiarism: overallScore > 70 
+          }
+        });
       }
   
-      const data = await response.json();
-      console.log('Datos recibidos del backend:', data);
-      
-      // Asegurar que los valores sean números
-      const tokenSim = parseFloat(data.token_similarity);
-      const astSim = parseFloat(data.ast_similarity);
-      
-      // Calcular el overall score como el promedio
-      const overallScore = (tokenSim + astSim) / 2;
-      
-      const mappedResults = {
-        tokenOverlap: tokenSim,
-        astSimilarity: astSim,
-        overallPlagiarismScore: overallScore,
-        isPlagiarism: overallScore > 70 
-      };
-  
-      console.log('Resultados mapeados:', mappedResults);
-      setResults(mappedResults);
+      setResults(results);
     } catch (error) {
       console.error('Error:', error);
       setError('Error al analizar el código');
