@@ -178,6 +178,7 @@ const PlagiarismChecker = () => {
     });
   
     try {
+      setLoading(true);
       const response = await fetch(`${API_URL}/api/analyze`, {
         method: 'POST',
         body: formData,
@@ -191,29 +192,43 @@ const PlagiarismChecker = () => {
       const data = await response.json();
       console.log('Datos recibidos del backend:', data);
       
-      // Asegurar que los valores sean números
-      const tokenSim = parseFloat(data.token_similarity);
-      const astSim = parseFloat(data.ast_similarity);
-      
-      // Calcular el overall score como el promedio
-      const overallScore = (tokenSim + astSim) / 2;
-      
+      // Ensure data exists and has the expected structure
+      if (!data || !data.comparisons) {
+        throw new Error('Datos inválidos recibidos del servidor');
+      }
+  
+      // Map the comparisons data safely
       const mappedResults = {
-        overallPlagiarismScore: overallScore,
-        isPlagiarism: overallScore > 70,
-        comparisons: comparisonFiles.map((file, index) => ({
-          fileName: file.name,
-          tokenOverlap: data.comparisons[index].token_similarity,
-          astSimilarity: data.comparisons[index].ast_similarity,
-          overallPlagiarismScore: (data.comparisons[index].token_similarity + data.comparisons[index].ast_similarity) / 2
-        }))
+        overallPlagiarismScore: 0,
+        isPlagiarism: false,
+        comparisons: data.comparisons.map((comparison, index) => {
+          const tokenSim = parseFloat(comparison.token_similarity || 0);
+          const astSim = parseFloat(comparison.ast_similarity || 0);
+          const fileScore = (tokenSim + astSim) / 2;
+          
+          return {
+            fileName: comparisonFiles[index]?.name || `Comparación ${index + 1}`,
+            tokenOverlap: tokenSim,
+            astSimilarity: astSim,
+            overallPlagiarismScore: fileScore
+          };
+        })
       };
+  
+      // Calculate overall score as average of all comparison scores
+      mappedResults.overallPlagiarismScore = mappedResults.comparisons.reduce(
+        (acc, curr) => acc + curr.overallPlagiarismScore, 
+        0
+      ) / mappedResults.comparisons.length;
+  
+      // Set plagiarism flag based on overall score
+      mappedResults.isPlagiarism = mappedResults.overallPlagiarismScore > 70;
   
       console.log('Resultados mapeados:', mappedResults);
       setResults(mappedResults);
     } catch (error) {
       console.error('Error:', error);
-      setError('Error al analizar el código');
+      setError(error.message || 'Error al analizar el código');
     } finally {
       setLoading(false);
     }
