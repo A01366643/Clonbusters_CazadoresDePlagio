@@ -189,18 +189,29 @@ const PlagiarismChecker = () => {
       }
   
       const data = await response.json();
+      console.log('Datos recibidos del backend:', data);
       
-      // Mapear la respuesta del backend a la estructura que espera el componente
+      // Asegurar que los valores sean números
+      const tokenSim = parseFloat(data.token_similarity);
+      const astSim = parseFloat(data.ast_similarity);
+      
+      // Calcular el overall score como el promedio
+      const overallScore = (tokenSim + astSim) / 2;
+      
       const mappedResults = {
-        tokenOverlap: data.token_similarity,
-        astSimilarity: data.ast_similarity,
-        overallPlagiarismScore: data.overall_score,
-        isPlagiarism: data.is_plagiarism
+        tokenOverlap: tokenSim,
+        astSimilarity: astSim,
+        overallPlagiarismScore: overallScore,
+        isPlagiarism: overallScore > 70 
       };
   
+      console.log('Resultados mapeados:', mappedResults);
       setResults(mappedResults);
     } catch (error) {
       console.error('Error:', error);
+      setError('Error al analizar el código');
+    } finally {
+      setLoading(false);
     }
   };
 
