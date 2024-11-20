@@ -1,7 +1,12 @@
 import React from 'react';
-import { AlertTriangle, Check, FileText } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
 
-const ComparisonResult = ({ result }) => {
+const ResultsDisplay = ({ results }) => {
+  const [expandedFile, setExpandedFile] = useState(null);
+  
+  if (!results) return null;
+
   const getScoreColor = (score) => {
     if (score > 70) return 'text-red-600';
     if (score > 40) return 'text-yellow-600';
@@ -14,85 +19,117 @@ const ComparisonResult = ({ result }) => {
     return 'bg-green-600';
   };
 
-  return (
-    <div className="mb-8 p-6 bg-white rounded-lg shadow-sm border">
-      <div className="flex items-center gap-2 mb-6">
-        <FileText className="text-blue-500 h-5 w-5" />
-        <h3 className="text-lg font-medium">
-          Comparación con: {result.fileName}
-        </h3>
+  const ComparisonMetrics = ({ data, fileName }) => (
+    <div className="space-y-4 bg-white p-4 rounded-lg shadow-sm">
+      <div className="font-medium text-gray-700">{fileName}</div>
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Similitud de Tokens</p>
+        <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div 
+            className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
+            style={{ width: `${data.tokenOverlap}%` }}
+          />
+        </div>
+        <p className="text-sm text-gray-600">{data.tokenOverlap}%</p>
       </div>
-
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <p className="font-medium">Similitud de Tokens</p>
-          <div className="w-full bg-gray-100 rounded-full h-2.5">
-            <div 
-              className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
-              style={{ width: `${result.tokenOverlap}%` }}
-            />
-          </div>
-          <p className="text-sm text-gray-600">{result.tokenOverlap}%</p>
+      
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Similitud de Estructura (AST)</p>
+        <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div 
+            className="bg-purple-600 h-2.5 rounded-full transition-all duration-500" 
+            style={{ width: `${data.astSimilarity}%` }}
+          />
         </div>
-
-        <div className="space-y-2">
-          <p className="font-medium">Similitud de Estructura (AST)</p>
-          <div className="w-full bg-gray-100 rounded-full h-2.5">
-            <div 
-              className="bg-purple-600 h-2.5 rounded-full transition-all duration-500" 
-              style={{ width: `${result.astSimilarity}%` }}
-            />
-          </div>
-          <p className="text-sm text-gray-600">{result.astSimilarity}%</p>
+        <p className="text-sm text-gray-600">{data.astSimilarity}%</p>
+      </div>
+      
+      <div className="space-y-2">
+        <p className="text-sm font-medium">Puntuación Global</p>
+        <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div 
+            className={`h-2.5 rounded-full transition-all duration-500 ${getProgressBarColor(data.overallPlagiarismScore)}`}
+            style={{ width: `${data.overallPlagiarismScore}%` }}
+          />
         </div>
-
-        <div className="space-y-2">
-          <p className="font-medium">Puntuación Global</p>
-          <div className="w-full bg-gray-100 rounded-full h-2.5">
-            <div 
-              className={`h-2.5 rounded-full transition-all duration-500 ${getProgressBarColor(result.overallScore)}`}
-              style={{ width: `${result.overallScore}%` }}
-            />
-          </div>
-          <p className={`text-sm font-medium ${getScoreColor(result.overallScore)}`}>
-            {result.overallScore}%
-          </p>
-        </div>
-
-        {result.overallScore > 70 && (
-          <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" />
-              <p className="font-medium">Advertencia de Plagio</p>
-            </div>
-            <p className="mt-2 text-sm">
-              Se ha detectado un alto nivel de similitud con el archivo original.
-              Se recomienda una revisión detallada.
-            </p>
-          </div>
-        )}
+        <p className={`text-sm font-medium ${getScoreColor(data.overallPlagiarismScore)}`}>
+          {data.overallPlagiarismScore}%
+        </p>
       </div>
     </div>
   );
-};
-
-const ResultsDisplay = ({ results }) => {
-  if (!results || !results.length) return null;
 
   return (
-    <div className="mt-8">
-      <div className="mb-6 flex items-center gap-2">
-        <Check className="text-green-500 h-6 w-6" />
-        <h2 className="text-xl font-semibold">
-          Análisis Completado
-        </h2>
+    <div className="mt-8 p-6 bg-gray-50 rounded-lg border">
+      <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+        {results.isPlagiarism ? (
+          <>
+            <AlertTriangle className="text-red-500" />
+            <span>Alto nivel de similitud detectado</span>
+          </>
+        ) : (
+          <>
+            <Check className="text-green-500" />
+            <span>Análisis Completado</span>
+          </>
+        )}
+      </h3>
+
+      {/* Overall Summary */}
+      <div className="mb-6">
+        <h4 className="text-lg font-medium mb-3">Resumen General</h4>
+        <div className="grid md:grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded-lg shadow-sm">
+            <p className="text-sm font-medium">Promedio de Similitud Global</p>
+            <div className="mt-2">
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div 
+                  className={`h-2.5 rounded-full transition-all duration-500 ${getProgressBarColor(results.overallPlagiarismScore)}`}
+                  style={{ width: `${results.overallPlagiarismScore}%` }}
+                />
+              </div>
+              <p className={`mt-1 text-sm font-medium ${getScoreColor(results.overallPlagiarismScore)}`}>
+                {results.overallPlagiarismScore}%
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
+      {/* Individual Comparisons */}
       <div className="space-y-4">
-        {results.map((result, index) => (
-          <ComparisonResult key={index} result={result} />
+        <h4 className="text-lg font-medium">Comparaciones Individuales</h4>
+        {results.comparisons && results.comparisons.map((comparison, index) => (
+          <div key={index} className="border rounded-lg overflow-hidden">
+            <button 
+              className="w-full px-4 py-3 flex items-center justify-between bg-white hover:bg-gray-50"
+              onClick={() => setExpandedFile(expandedFile === index ? null : index)}
+            >
+              <span className="font-medium">{comparison.fileName}</span>
+              {expandedFile === index ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+            </button>
+            
+            {expandedFile === index && (
+              <div className="p-4 border-t bg-gray-50">
+                <ComparisonMetrics data={comparison} fileName={comparison.fileName} />
+              </div>
+            )}
+          </div>
         ))}
       </div>
+
+      {results.isPlagiarism && (
+        <div className="mt-6 p-4 bg-red-50 text-red-700 rounded-lg">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
+            <p className="font-medium">Advertencia de Plagio</p>
+          </div>
+          <p className="mt-2 text-sm">
+            Se ha detectado un alto nivel de similitud entre los códigos proporcionados.
+            Se recomienda una revisión detallada.
+          </p>
+        </div>
+      )}
     </div>
   );
 };
