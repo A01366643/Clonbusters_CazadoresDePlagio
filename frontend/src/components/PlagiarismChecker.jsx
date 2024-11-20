@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, FileText, AlertCircle, AlertTriangle, Check } from 'lucide-react';
 
+// Componente ResultsDisplay integrado
 const ResultsDisplay = ({ results }) => {
   if (!results) return null;
   
@@ -83,14 +84,15 @@ const ResultsDisplay = ({ results }) => {
   );
 };
 
+// Componente principal PlagiarismChecker
 const PlagiarismChecker = () => {
   const [originalFile, setOriginalFile] = useState(null);
-  const [comparisonFile, setComparisonFile] = useState(null);
+  const [comparisonFiles, setComparisonFiles] = useState([]);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [dragActive, setDragActive] = useState({ original: false, comparison: false });
-  const [apiStatus, setApiStatus] = useState('checking');
+  const [dragActive, setDragActive] = useState({ original: false, comparison: false })
+  const [apiStatus, setApiStatus] = useState('checking'); // Agregar esta línea
   
   const originalInputRef = useRef(null);
   const comparisonInputRef = useRef(null);
@@ -136,8 +138,8 @@ const PlagiarismChecker = () => {
     e.preventDefault();
     setDragActive(prev => ({ ...prev, comparison: false }));
     
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleComparisonFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files) {
+      handleComparisonFiles(Array.from(e.dataTransfer.files));
     }
   };
 
@@ -150,29 +152,30 @@ const PlagiarismChecker = () => {
     setError('');
   };
 
-  const handleComparisonFile = (file) => {
-    if (!file.name.endsWith('.java')) {
+  const handleComparisonFiles = (files) => {
+    const invalidFiles = files.filter(file => !file.name.endsWith('.java'));
+    if (invalidFiles.length > 0) {
       setError('Por favor, sube solo archivos Java (.java)');
       return;
     }
-    setComparisonFile(file);
+    setComparisonFiles(prev => [...prev, ...files]);
     setError('');
   };
 
+  const removeComparisonFile = (index) => {
+    setComparisonFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Primero, agrega esta constante en la parte superior del archivo, después de los imports
   const API_URL = import.meta.env.VITE_API_URL;
   
+  // Reemplaza la función analyzeCode actual con esta versión:
   const analyzeCode = async () => {
-    if (!originalFile || !comparisonFile) {
-      setError('Por favor, sube ambos archivos antes de analizar');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    
     const formData = new FormData();
     formData.append('original', originalFile);
-    formData.append('comparison', comparisonFile);
+    comparisonFiles.forEach((file) => {
+      formData.append('comparison_files', file);
+    });
   
     try {
       const response = await fetch(`${API_URL}/api/analyze`, {
@@ -188,8 +191,11 @@ const PlagiarismChecker = () => {
       const data = await response.json();
       console.log('Datos recibidos del backend:', data);
       
+      // Asegurar que los valores sean números
       const tokenSim = parseFloat(data.token_similarity);
       const astSim = parseFloat(data.ast_similarity);
+      
+      // Calcular el overall score como el promedio
       const overallScore = (tokenSim + astSim) / 2;
       
       const mappedResults = {
@@ -199,6 +205,7 @@ const PlagiarismChecker = () => {
         isPlagiarism: overallScore > 70 
       };
   
+      console.log('Resultados mapeados:', mappedResults);
       setResults(mappedResults);
     } catch (error) {
       console.error('Error:', error);
@@ -267,16 +274,15 @@ const PlagiarismChecker = () => {
           </div>
         </div>
         
-        {/* Área para código a comparar */}
+        {/* Área para códigos a comparar */}
         <div>
-          <h2 className="text-xl font-semibold mb-4">Código a Comparar</h2>
+          <h2 className="text-xl font-semibold mb-4">Códigos a Comparar</h2>
           <div
             className={`
               w-full h-64 border-2 border-dashed rounded-lg
               ${dragActive.comparison ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}
               transition-colors duration-200 ease-in-out
-              flex flex-col items-center justify-center
-              cursor-pointer
+              overflow-y-auto
             `}
             onClick={() => comparisonInputRef.current?.click()}
             onDragEnter={e => handleDrag(e, 'comparison')}
@@ -289,30 +295,38 @@ const PlagiarismChecker = () => {
               type="file"
               className="hidden"
               accept=".java"
-              onChange={e => handleComparisonFile(e.target.files[0])}
+              multiple
+              onChange={e => handleComparisonFiles(Array.from(e.target.files))}
             />
             
-            {comparisonFile ? (
-              <div className="flex items-center gap-2 p-4">
-                <FileText className="text-blue-500" />
-                <span className="font-medium">{comparisonFile.name}</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setComparisonFile(null);
-                  }}
-                  className="p-1 hover:bg-gray-100 rounded-full"
-                >
-                  <X className="h-4 w-4 text-gray-500" />
-                </button>
+            {comparisonFiles.length > 0 ? (
+              <div className="p-4 space-y-2">
+                {comparisonFiles.map((file, index) => (
+                  <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                    <div className="flex items-center gap-2">
+                      <FileText className="text-blue-500" />
+                      <span className="font-medium">{file.name}</span>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeComparisonFile(index);
+                      }}
+                      className="p-1 hover:bg-gray-100 rounded-full"
+                    >
+                      <X className="h-4 w-4 text-gray-500" />
+                    </button>
+                  </div>
+                ))}
               </div>
             ) : (
-              <>
+              <div className="h-full flex flex-col items-center justify-center">
                 <Upload className="h-10 w-10 text-blue-500 mb-2" />
-                <p className="text-sm text-gray-600">
-                  Arrastra y suelta tu archivo Java aquí o haz clic para seleccionarlo
+                <p className="text-sm text-gray-600 text-center">
+                  Arrastra y suelta tus archivos Java aquí<br />
+                  o haz clic para seleccionarlos
                 </p>
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -328,10 +342,10 @@ const PlagiarismChecker = () => {
       <div className="mt-6 flex justify-center">
         <button
           onClick={analyzeCode}
-          disabled={!originalFile || !comparisonFile || loading || apiStatus !== 'ready'}
+          disabled={loading || apiStatus !== 'ready'}
           className={`
             flex items-center gap-2 px-6 py-3 rounded-lg
-            ${(!originalFile || !comparisonFile || loading || apiStatus !== 'ready')
+            ${loading || apiStatus !== 'ready'
               ? 'bg-gray-400 cursor-not-allowed' 
               : 'bg-blue-600 hover:bg-blue-700'
             }
