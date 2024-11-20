@@ -9,12 +9,10 @@ from pathlib import Path
 
 app = FastAPI(title="ClonBusters API")
 
-# Configurar CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://a01366643.github.io",
-        "https://clonbusters-backend.onrender.com",
         "http://localhost:5173"
     ],
     allow_credentials=True,

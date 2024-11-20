@@ -176,27 +176,17 @@ const PlagiarismChecker = () => {
   };
 
   // Primero, agrega esta constante en la parte superior del archivo, después de los imports
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  const API_URL = import.meta.env.VITE_API_URL;
   
   // Reemplaza la función analyzeCode actual con esta versión:
   const analyzeCode = async () => {
-    if (!originalFile || comparisonFiles.length === 0) {
-      setError('Por favor, sube el código original y al menos un archivo para comparar');
-      return;
-    }
-  
-    setLoading(true);
-    setError('');
+    const formData = new FormData();
+    formData.append('original', originalFile);
+    comparisonFiles.forEach((file) => {
+      formData.append('comparison_files', file);
+    });
   
     try {
-      const formData = new FormData();
-      formData.append('original_file', originalFile);
-      
-      // Agregar los archivos de comparación
-      comparisonFiles.forEach((file, index) => {
-        formData.append('comparison_files', file);
-      });
-  
       const response = await fetch(`${API_URL}/api/analyze`, {
         method: 'POST',
         body: formData,
@@ -219,11 +209,8 @@ const PlagiarismChecker = () => {
       };
   
       setResults(mappedResults);
-    } catch (err) {
-      console.error('Error:', err);
-      setError(`Error al analizar el código: ${err.message}`);
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error('Error:', error);
     }
   };
 
