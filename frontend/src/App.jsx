@@ -2,6 +2,7 @@ import React from 'react'
 import PlagiarismChecker from './components/PlagiarismChecker'
 
 function App() {
+  console.log('App is rendering') // Añade esto para debug
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-blue-600 text-white p-4">
