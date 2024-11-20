@@ -46,6 +46,7 @@ jobs:
           npm run build
         env:
           VITE_BASE_URL: '.'
+          VITE_API_URL: 'https://tu-api-publica.com'  # URL de tu backend
           
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
