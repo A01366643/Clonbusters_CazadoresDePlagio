@@ -1,3 +1,4 @@
+# .github/workflows/backend.yml
 name: backend
 on:
   push:
@@ -24,41 +25,19 @@ jobs:
         pip install -r backend/requirements.txt
         pip install javalang scikit-learn numpy pandas joblib
         
+    - name: Create model directory
+      run: mkdir -p backend/model
+        
     - name: Train model
       run: |
-        python backend/model/train.py
+        cd backend
+        python model/train.py
       env:
-        DATASET_PATH: "/github/workspace/backend/data/IR-Plag-Dataset/"
+        DATASET_PATH: "data/IR-Plag-Dataset/"
         
     - name: Save model artifacts
       run: |
         mkdir -p model_artifacts
-        cp backend/model/*.joblib model_artifacts/
-        
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
-        
-    - name: Login to Docker Hub
-      uses: docker/login-action@v1
-      with:
-        username: ${{ secrets.DOCKER_USER }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-        
-    - name: Build and push
-      uses: docker/build-push-action@v2
-      with:
-        context: .
-        push: true
-        tags: ${{ secrets.DOCKER_USER }}/clonbusters:latest,${{ secrets.DOCKER_USER }}/clonbusters:${{ github.sha }}
-
-    - name: Deploy to server
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.SERVER_HOST }}
-        username: ${{ secrets.SERVER_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          docker pull ${{ secrets.DOCKER_USER }}/clonbusters:${{ github.sha }}
-          docker stop clonbusters || true
-          docker rm clonbusters || true
-          docker run -d --name clonbusters -p 8000:8000 ${{ secrets.DOCKER_USER }}/clonbusters:${{ github.sha }}
+        cp backend/model/*.joblib model_artifacts/ || echo "No joblib files found"
+        ls -la backend/model/
+        ls -la model_artifacts/
