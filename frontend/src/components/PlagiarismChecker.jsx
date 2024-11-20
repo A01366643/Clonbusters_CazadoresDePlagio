@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, FileText, AlertTriangle, Check, AlertCircle } from 'lucide-react';
 
 // Definimos la URL base directamente - ajusta esto según tu entorno
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const ResultsDisplay = ({ results }) => {
   if (!results) return null;
