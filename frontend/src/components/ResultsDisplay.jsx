@@ -17,7 +17,7 @@ const ResultsDisplay = ({ results }) => {
   };
 
   const formatPercentage = (value) => {
-    return Number(value).toFixed(2);
+    return parseFloat(value).toFixed(2);
   };
 
   return (
