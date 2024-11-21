@@ -1,4 +1,3 @@
-# .github/workflows/backend.yml
 name: backend
 on:
   push:
@@ -25,19 +24,37 @@ jobs:
         pip install -r backend/requirements.txt
         pip install javalang scikit-learn numpy pandas joblib
         
-    - name: Create model directory
-      run: mkdir -p backend/model
+    - name: List directory structure
+      run: |
+        echo "Current directory structure:"
+        ls -R
+        
+    - name: Create directories
+      run: |
+        mkdir -p backend/model
+        mkdir -p data/IR-Plag-Dataset
+        
+    - name: Verify dataset location
+      run: |
+        echo "Checking dataset location..."
+        ls -la data/IR-Plag-Dataset || echo "Dataset directory is empty"
         
     - name: Train model
       run: |
         cd backend
         python model/train.py
       env:
-        DATASET_PATH: "data/IR-Plag-Dataset/"
+        DATASET_PATH: "../data/IR-Plag-Dataset"
+        
+    - name: Verify model artifacts
+      run: |
+        echo "Checking model artifacts..."
+        ls -la backend/model/
         
     - name: Save model artifacts
-      run: |
-        mkdir -p model_artifacts
-        cp backend/model/*.joblib model_artifacts/ || echo "No joblib files found"
-        ls -la backend/model/
-        ls -la model_artifacts/
+      uses: actions/upload-artifact@v2
+      with:
+        name: model-artifacts
+        path: |
+          backend/model/*.joblib
+          backend/model/*.json
