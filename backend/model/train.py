@@ -14,6 +14,7 @@ from joblib import dump
 import time
 from datetime import datetime
 import json
+from sklearn.model_selection import train_test_split, cross_validate, KFold
 
 class MetricsCollector:
     def __init__(self):
@@ -327,7 +328,7 @@ def train_with_cv(X, y, model):
     try:
         if len(y) < 5:
             raise ValueError("Insuficientes datos para validación cruzada")
-        
+            
         cv_results = {
             'test_accuracy': [],
             'test_precision': [],
@@ -341,15 +342,13 @@ def train_with_cv(X, y, model):
             X_train_fold, X_val_fold = X[train_idx], X[val_idx]
             y_train_fold, y_val_fold = y[train_idx], y[val_idx]
             
-            # Entrenar en fold
             model.fit(X_train_fold, y_train_fold)
             y_pred_fold = model.predict(X_val_fold)
             
-            # Convertir a binario para métricas
+            # Usar umbral de 50% para métricas
             y_val_binary = y_val_fold > 50
             y_pred_binary = y_pred_fold > 50
             
-            # Calcular métricas
             cv_results['test_accuracy'].append(accuracy_score(y_val_binary, y_pred_binary))
             cv_results['test_precision'].append(precision_score(y_val_binary, y_pred_binary))
             cv_results['test_recall'].append(recall_score(y_val_binary, y_pred_binary))
@@ -439,10 +438,9 @@ def main():
                             similarity = np.mean(feature_vector) * 100
                             
                             if "non-plagiarized" in str(file):
-                                plagiarism_score = max(similarity - 40, 0)  # Reducir más para no plagiados
+                                plagiarism_score = max(similarity - 50, 0)  # Aumentar reducción para no plagiados
                             else:
-                                plagiarism_score = min(similarity + 20, 100)  # Aumentar menos para plagiados
-                            
+                                plagiarism_score = min(similarity + 15, 100)  # Reducir aumento para plagiados
                             features.append(feature_vector)
                             labels.append(plagiarism_score)
                             
@@ -476,9 +474,10 @@ def main():
         # Entrenar modelo con validación cruzada
         print("\nEntrenando modelo con validación cruzada...")
         model = RandomForestRegressor(
-            n_estimators=100,
+            n_estimators=200,  # Aumentar número de árboles
+            max_depth=10,      # Limitar profundidad
             random_state=42,
-            n_jobs=-1  # Usar todos los cores disponibles
+            n_jobs=-1
         )
         
         try:
