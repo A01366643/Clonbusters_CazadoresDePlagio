@@ -10,6 +10,10 @@ on:
 jobs:
   train_deploy_model:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      
     steps:
     - uses: actions/checkout@v3
     
@@ -28,6 +32,7 @@ jobs:
       run: |
         mkdir -p backend/model
         mkdir -p backend/data/IR-Plag-Dataset
+        chmod 777 backend/model  # Dar permisos completos al directorio
         
     - name: Train model
       run: |
@@ -36,12 +41,16 @@ jobs:
       env:
         DATASET_PATH: "data/IR-Plag-Dataset"
         
+    - name: Fix permissions
+      run: |
+        sudo chown -R $USER:$USER backend/model/
+        chmod -R 755 backend/model/
+        
     - name: Display model metrics
       run: |
         echo "=== Métricas del Modelo ==="
         if [ -f "backend/model/metrics.json" ]; then
-          echo "Contenido de metrics.json:"
-          cat backend/model/metrics.json
+          sudo cat backend/model/metrics.json
         else
           echo "metrics.json no encontrado"
           echo "Contenido del directorio model:"
@@ -51,19 +60,28 @@ jobs:
     - name: Generate metrics report
       run: |
         cd backend
-        echo "=== Reporte de Métricas ===" > model/metrics_report.txt
-        echo "Timestamp: $(date)" >> model/metrics_report.txt
-        echo "\nMétricas del modelo:" >> model/metrics_report.txt
+        sudo bash -c 'echo "=== Reporte de Métricas ===" > model/metrics_report.txt'
+        sudo bash -c 'echo "Timestamp: $(date)" >> model/metrics_report.txt'
         if [ -f "model/metrics.json" ]; then
-          echo "$(cat model/metrics.json)" >> model/metrics_report.txt
+          sudo bash -c 'cat model/metrics.json >> model/metrics_report.txt'
         else
-          echo "No se encontró el archivo de métricas" >> model/metrics_report.txt
+          sudo bash -c 'echo "No se encontró el archivo de métricas" >> model/metrics_report.txt'
         fi
         
-        # Agregar información del último commit
-        echo "\nInformación del commit:" >> model/metrics_report.txt
-        echo "Commit: $GITHUB_SHA" >> model/metrics_report.txt
-        echo "Branch: $GITHUB_REF" >> model/metrics_report.txt
+    - name: Verify artifacts with permissions
+      run: |
+        echo "=== Verificando artefactos ==="
+        sudo ls -la backend/model/
+        
+        for file in classifier.joblib metrics.json metrics_report.txt; do
+          if [ -f "backend/model/$file" ]; then
+            echo "✓ $file encontrado"
+            echo "Tamaño: $(sudo ls -lh backend/model/$file | awk '{print $5}')"
+            sudo chmod 644 "backend/model/$file"  # Dar permisos de lectura
+          else
+            echo "✗ $file no encontrado"
+          fi
+        done
         
     - name: Save artifacts
       uses: actions/upload-artifact@v3
@@ -73,33 +91,4 @@ jobs:
           backend/model/classifier.joblib
           backend/model/metrics.json
           backend/model/metrics_report.txt
-        retention-days: 90
-        
-    - name: Verify artifacts
-      run: |
-        echo "=== Verificando artefactos ==="
-        echo "Contenido del directorio backend/model:"
-        ls -la backend/model/
-        
-        if [ -f "backend/model/classifier.joblib" ]; then
-          echo "✓ classifier.joblib encontrado"
-          echo "Tamaño: $(ls -lh backend/model/classifier.joblib | awk '{print $5}')"
-        else
-          echo "✗ classifier.joblib no encontrado"
-        fi
-        
-        if [ -f "backend/model/metrics.json" ]; then
-          echo "✓ metrics.json encontrado"
-          echo "Tamaño: $(ls -lh backend/model/metrics.json | awk '{print $5}')"
-        else
-          echo "✗ metrics.json no encontrado"
-        fi
-        
-        if [ -f "backend/model/metrics_report.txt" ]; then
-          echo "✓ metrics_report.txt encontrado"
-          echo "Tamaño: $(ls -lh backend/model/metrics_report.txt | awk '{print $5}')"
-        else
-          echo "✗ metrics_report.txt no encontrado"
-        fi
-          backend/model/*.json
         retention-days: 90
