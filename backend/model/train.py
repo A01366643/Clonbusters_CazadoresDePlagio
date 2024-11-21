@@ -6,7 +6,7 @@ from sklearn.metrics import (
     mean_absolute_error, accuracy_score, precision_score, 
     recall_score, f1_score, confusion_matrix
 )
-from sklearn.model_selection import train_test_split, cross_validate
+from sklearn.model_selection import train_test_split, cross_validate, KFold
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import javalang
@@ -14,7 +14,7 @@ from joblib import dump
 import time
 from datetime import datetime
 import json
-from sklearn.model_selection import train_test_split, cross_validate, KFold
+
 
 class MetricsCollector:
     def __init__(self):
