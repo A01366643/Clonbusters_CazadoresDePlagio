@@ -1,25 +1,17 @@
 import React from 'react';
 import { AlertTriangle, Check } from 'lucide-react';
-
 const ResultsDisplay = ({ results }) => {
   if (!results) return null;
-
   const getScoreColor = (score) => {
     if (score > 70) return 'text-red-600';
     if (score > 40) return 'text-yellow-600';
     return 'text-green-600';
   };
-
   const getProgressBarColor = (score) => {
     if (score > 70) return 'bg-red-600';
     if (score > 40) return 'bg-yellow-600';
     return 'bg-green-600';
   };
-
-  const formatPercentage = (value) => {
-    return parseFloat(value).toFixed(2);
-  };
-
   return (
     <div className="mt-8 p-6 bg-gray-50 rounded-lg border">
       <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -41,31 +33,31 @@ const ResultsDisplay = ({ results }) => {
           <div className="w-full bg-gray-200 rounded-full h-2.5">
             <div 
               className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
-              style={{ width: `${formatPercentage(results.tokenOverlap)}%` }}
+              style={{ width: ${results.tokenOverlap}% }}
             />
           </div>
-          <p className="text-sm text-gray-600">{formatPercentage(results.tokenOverlap)}%</p>
+          <p className="text-sm text-gray-600">{results.tokenOverlap}%</p>
         </div>
         <div className="space-y-2">
           <p className="font-medium">Similitud de Estructura (AST)</p>
           <div className="w-full bg-gray-200 rounded-full h-2.5">
             <div 
               className="bg-purple-600 h-2.5 rounded-full transition-all duration-500" 
-              style={{ width: `${formatPercentage(results.astSimilarity)}%` }}
+              style={{ width: ${results.astSimilarity}% }}
             />
           </div>
-          <p className="text-sm text-gray-600">{formatPercentage(results.astSimilarity)}%</p>
+          <p className="text-sm text-gray-600">{results.astSimilarity}%</p>
         </div>
         <div className="space-y-2">
           <p className="font-medium">Puntuación Global</p>
           <div className="w-full bg-gray-200 rounded-full h-2.5">
             <div 
-              className={`h-2.5 rounded-full transition-all duration-500 ${getProgressBarColor(results.overallPlagiarismScore)}`}
-              style={{ width: `${formatPercentage(results.overallPlagiarismScore)}%` }}
+              className={h-2.5 rounded-full transition-all duration-500 ${getProgressBarColor(results.overallPlagiarismScore)}}
+              style={{ width: ${results.overallPlagiarismScore}% }}
             />
           </div>
-          <p className={`text-sm font-medium ${getScoreColor(results.overallPlagiarismScore)}`}>
-            {formatPercentage(results.overallPlagiarismScore)}%
+          <p className={text-sm font-medium ${getScoreColor(results.overallPlagiarismScore)}}>
+            {results.overallPlagiarismScore}%
           </p>
         </div>
       </div>
@@ -84,5 +76,4 @@ const ResultsDisplay = ({ results }) => {
     </div>
   );
 };
-
 export default ResultsDisplay;
