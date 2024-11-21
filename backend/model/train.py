@@ -123,181 +123,230 @@ def get_label(original_file, file):
     return plagiarism_percentage
 
 def generate_metrics_report(metrics_collector, y_test, y_pred, test_files, model):
-    # Convert continuous predictions to binary for classification metrics
-    threshold = 50  # Consider it plagiarism if similarity is > 50%
-    y_pred_binary = (y_pred > threshold).astype(int)
-    y_test_binary = (y_test > threshold).astype(int)
-    
-    report = {
-        "Model Performance": {
-            "Mean Absolute Error": mean_absolute_error(y_test, y_pred),
-            "Accuracy": accuracy_score(y_test_binary, y_pred_binary),
-            "Precision": precision_score(y_test_binary, y_pred_binary),
-            "Recall": recall_score(y_test_binary, y_pred_binary),
-            "F1 Score": f1_score(y_test_binary, y_pred_binary),
-            "Confusion Matrix": confusion_matrix(y_test_binary, y_pred_binary).tolist()
-        },
-        "Analysis Methods": {
-            "Token Analysis": {
-                "Mean Similarity": np.mean(metrics_collector.token_similarities),
-                "Std Similarity": np.std(metrics_collector.token_similarities),
-                "Min Similarity": np.min(metrics_collector.token_similarities),
-                "Max Similarity": np.max(metrics_collector.token_similarities)
+    try:
+        # Convert continuous predictions to binary for classification metrics
+        threshold = 50  # Consider it plagiarism if similarity is > 50%
+        y_pred_binary = (y_pred > threshold).astype(int)
+        y_test_binary = (y_test > threshold).astype(int)
+        
+        report = {
+            "Model Performance": {
+                "Mean Absolute Error": float(mean_absolute_error(y_test, y_pred)),
+                "Accuracy": float(accuracy_score(y_test_binary, y_pred_binary)),
+                "Precision": float(precision_score(y_test_binary, y_pred_binary)),
+                "Recall": float(recall_score(y_test_binary, y_pred_binary)),
+                "F1 Score": float(f1_score(y_test_binary, y_pred_binary))
             },
-            "AST Analysis": {
-                "Mean Similarity": np.mean(metrics_collector.ast_similarities),
-                "Std Similarity": np.std(metrics_collector.ast_similarities),
-                "Min Similarity": np.min(metrics_collector.ast_similarities),
-                "Max Similarity": np.max(metrics_collector.ast_similarities)
-            }
-        },
-        "Execution Time": {
-            "Mean Processing Time": np.mean(metrics_collector.execution_times),
-            "Total Processing Time": np.sum(metrics_collector.execution_times),
-            "Files Processed": len(metrics_collector.execution_times)
-        },
-        "Case Analysis": metrics_collector.case_metrics
-    }
-    
-    # Save detailed report
-    report_path = Path(__file__).parent / "metrics_report.txt"
-    with open(report_path, "w") as f:
-        f.write(f"Plagiarism Detection Metrics Report\n")
-        f.write(f"Generated on: {datetime.now()}\n\n")
-        
-        # Model Performance
-        f.write("1. Model Performance Metrics\n")
-        f.write("-" * 30 + "\n")
-        f.write(f"Mean Absolute Error: {report['Model Performance']['Mean Absolute Error']:.4f}\n")
-        f.write(f"Accuracy: {report['Model Performance']['Accuracy']:.4f}\n")
-        f.write(f"Precision: {report['Model Performance']['Precision']:.4f}\n")
-        f.write(f"Recall: {report['Model Performance']['Recall']:.4f}\n")
-        f.write(f"F1 Score: {report['Model Performance']['F1 Score']:.4f}\n\n")
-        
-        # Confusion Matrix
-        f.write("Confusion Matrix:\n")
-        cm = report['Model Performance']['Confusion Matrix']
-        f.write(f"[[{cm[0][0]}, {cm[0][1]}]\n")
-        f.write(f" [{cm[1][0]}, {cm[1][1]}]]\n\n")
-        
-        # Analysis Methods Comparison
-        f.write("2. Analysis Methods Comparison\n")
-        f.write("-" * 30 + "\n")
-        f.write("Token Analysis:\n")
-        for key, value in report['Analysis Methods']['Token Analysis'].items():
-            f.write(f"{key}: {value:.4f}\n")
-        f.write("\nAST Analysis:\n")
-        for key, value in report['Analysis Methods']['AST Analysis'].items():
-            f.write(f"{key}: {value:.4f}\n")
-        
-        # Execution Times
-        f.write("\n3. Execution Time Analysis\n")
-        f.write("-" * 30 + "\n")
-        f.write(f"Mean Processing Time: {report['Execution Time']['Mean Processing Time']:.4f} seconds\n")
-        f.write(f"Total Processing Time: {report['Execution Time']['Total Processing Time']:.4f} seconds\n")
-        f.write(f"Files Processed: {report['Execution Time']['Files Processed']}\n")
-        
-        # Case Analysis
-        f.write("\n4. Case-by-Case Analysis\n")
-        f.write("-" * 30 + "\n")
-        for case, metrics in report['Case Analysis'].items():
-            f.write(f"\nCase {case}:\n")
-            for metric_name, metric_value in metrics.items():
-                f.write(f"{metric_name}: {metric_value}\n")
-    
-    return report
-
-def main():
-    print("Iniciando entrenamiento del modelo Clonbusters con métricas...")
-    
-    current_dir = Path(__file__).parent
-    model_dir = current_dir
-    dataset_dir = current_dir.parent / "data" / "IR-Plag-Dataset"
-    model_dir.mkdir(exist_ok=True)
-    
-    metrics_collector = MetricsCollector()
-    
-    print(f"Cargando dataset desde: {dataset_dir}")
-    cases = load_dataset(dataset_dir)
-    
-    features = []
-    labels = []
-    text_samples = []
-    file_paths = []  # Para tracking
-
-    for case_idx, case in enumerate(cases, 1):
-        print(f"Procesando caso {case_idx}/{len(cases)}: {case}")
-        
-        case_metrics = {
-            "total_files": 0,
-            "plagiarized_files": 0,
-            "non_plagiarized_files": 0,
-            "avg_similarity": 0,
-            "processing_time": 0
+            "Analysis Methods": {
+                "Token Analysis": {
+                    "Mean Similarity": float(np.mean(metrics_collector.token_similarities)) if metrics_collector.token_similarities else 0.0,
+                    "Std Similarity": float(np.std(metrics_collector.token_similarities)) if metrics_collector.token_similarities else 0.0,
+                    "Min Similarity": float(np.min(metrics_collector.token_similarities)) if metrics_collector.token_similarities else 0.0,
+                    "Max Similarity": float(np.max(metrics_collector.token_similarities)) if metrics_collector.token_similarities else 0.0
+                },
+                "AST Analysis": {
+                    "Mean Similarity": float(np.mean(metrics_collector.ast_similarities)) if metrics_collector.ast_similarities else 0.0,
+                    "Std Similarity": float(np.std(metrics_collector.ast_similarities)) if metrics_collector.ast_similarities else 0.0,
+                    "Min Similarity": float(np.min(metrics_collector.ast_similarities)) if metrics_collector.ast_similarities else 0.0,
+                    "Max Similarity": float(np.max(metrics_collector.ast_similarities)) if metrics_collector.ast_similarities else 0.0
+                }
+            },
+            "Execution Time": {
+                "Mean Processing Time": float(np.mean(metrics_collector.execution_times)) if metrics_collector.execution_times else 0.0,
+                "Total Processing Time": float(np.sum(metrics_collector.execution_times)) if metrics_collector.execution_times else 0.0,
+                "Files Processed": len(metrics_collector.execution_times)
+            },
+            "Case Analysis": metrics_collector.case_metrics
         }
         
-        metrics_collector.start_timing()
+        # Guardar reporte en formato JSON para mejor compatibilidad
+        import json
+        report_path = Path(__file__).parent / "metrics_report.json"
+        with open(report_path, "w") as f:
+            json.dump(report, f, indent=4)
         
-        original_file = load_original_file(case)
-        plagiarized_files = load_plagiarized_files(case)
-        non_plagiarized_files = load_non_plagiarized_files(case)
-        
-        case_metrics["plagiarized_files"] = len(plagiarized_files)
-        case_metrics["non_plagiarized_files"] = len(non_plagiarized_files)
-        case_metrics["total_files"] = len(plagiarized_files) + len(non_plagiarized_files)
-        
-        with open(original_file, 'r') as f:
-            text_samples.append(f.read())
-        
-        similarities = []
-        for file in plagiarized_files + non_plagiarized_files:
-            token_overlap = calculate_token_overlap(original_file, file, metrics_collector)
-            ast_similarity = calculate_ast_similarity(original_file, file, metrics_collector)
+        # También guardar una versión legible en texto
+        txt_report_path = Path(__file__).parent / "metrics_report.txt"
+        with open(txt_report_path, "w") as f:
+            f.write(f"Plagiarism Detection Metrics Report\n")
+            f.write(f"Generated on: {datetime.now()}\n\n")
             
-            with open(file, 'r') as f:
-                text_samples.append(f.read())
+            # Model Performance
+            f.write("1. Model Performance Metrics\n")
+            f.write("-" * 30 + "\n")
+            for metric, value in report["Model Performance"].items():
+                f.write(f"{metric}: {value:.4f}\n")
             
-            features.append([token_overlap, ast_similarity])
-            label = get_label(original_file, file)
-            labels.append(label)
-            similarities.append(label)
-            file_paths.append(file)
+            # Analysis Methods
+            f.write("\n2. Analysis Methods Comparison\n")
+            f.write("-" * 30 + "\n")
+            for method, metrics in report["Analysis Methods"].items():
+                f.write(f"\n{method}:\n")
+                for metric, value in metrics.items():
+                    f.write(f"{metric}: {value:.4f}\n")
+            
+            # Execution Times
+            f.write("\n3. Execution Time Analysis\n")
+            f.write("-" * 30 + "\n")
+            for metric, value in report["Execution Time"].items():
+                if isinstance(value, float):
+                    f.write(f"{metric}: {value:.4f} seconds\n")
+                else:
+                    f.write(f"{metric}: {value}\n")
+            
+            # Case Analysis
+            f.write("\n4. Case-by-Case Analysis\n")
+            f.write("-" * 30 + "\n")
+            for case, metrics in report["Case Analysis"].items():
+                f.write(f"\nCase {case}:\n")
+                for metric_name, metric_value in metrics.items():
+                    if isinstance(metric_value, float):
+                        f.write(f"{metric_name}: {metric_value:.4f}\n")
+                    else:
+                        f.write(f"{metric_name}: {metric_value}\n")
         
-        case_metrics["avg_similarity"] = np.mean(similarities)
-        case_metrics["processing_time"] = metrics_collector.stop_timing()
-        metrics_collector.case_metrics[f"case_{case_idx}"] = case_metrics
-    
-    # Entrenamiento y evaluación
-    X = np.array(features)
-    y = np.array(labels)
-    
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    print("Entrenando modelo...")
-    classifier = RandomForestRegressor(n_estimators=100, random_state=42)
-    classifier.fit(X_train, y_train)
-    
-    print("Evaluando modelo...")
-    y_pred = classifier.predict(X_test)
-    
-    # Generar reporte de métricas
-    print("Generando reporte de métricas...")
-    metrics_report = generate_metrics_report(metrics_collector, y_test, y_pred, file_paths, classifier)
-    
-    # Guardar modelo y vectorizador
-    try:
-        classifier_path = model_dir / "classifier.joblib"
-        dump(classifier, classifier_path)
-        print(f"Modelo guardado en: {classifier_path}")
+        return report
     except Exception as e:
-        print(f"Error al guardar el modelo: {e}")
+        print(f"Error al generar el reporte de métricas: {str(e)}")
+        # Crear un reporte mínimo en caso de error
+        error_report = {
+            "error": str(e),
+            "status": "failed",
+            "timestamp": str(datetime.now())
+        }
+        
+        # Guardar el reporte de error
+        error_report_path = Path(__file__).parent / "error_report.json"
+        with open(error_report_path, "w") as f:
+            json.dump(error_report, f, indent=4)
+        
+        return error_report
+
+def main():
+    try:
+        print("Iniciando entrenamiento del modelo Clonbusters con métricas...")
+        
+        current_dir = Path(__file__).parent
+        model_dir = current_dir
+        dataset_dir = current_dir.parent / "data" / "IR-Plag-Dataset"
+        model_dir.mkdir(exist_ok=True)
+        
+        if not dataset_dir.exists():
+            raise FileNotFoundError(f"No se encontró el directorio del dataset: {dataset_dir}")
+        
+        metrics_collector = MetricsCollector()
+        
+        print(f"Cargando dataset desde: {dataset_dir}")
+        cases = load_dataset(dataset_dir)
+        
+        if not cases:
+            raise ValueError("No se encontraron casos en el dataset")
+        
+        features = []
+        labels = []
+        text_samples = []
+        file_paths = []
+        
+        for case_idx, case in enumerate(cases, 1):
+            try:
+                print(f"Procesando caso {case_idx}/{len(cases)}: {case}")
+                
+                case_metrics = {
+                    "total_files": 0,
+                    "plagiarized_files": 0,
+                    "non_plagiarized_files": 0,
+                    "avg_similarity": 0,
+                    "processing_time": 0
+                }
+                
+                metrics_collector.start_timing()
+                
+                original_file = load_original_file(case)
+                plagiarized_files = load_plagiarized_files(case)
+                non_plagiarized_files = load_non_plagiarized_files(case)
+                
+                if not original_file:
+                    print(f"Advertencia: No se encontró archivo original en el caso {case_idx}")
+                    continue
+                
+                case_metrics["plagiarized_files"] = len(plagiarized_files)
+                case_metrics["non_plagiarized_files"] = len(non_plagiarized_files)
+                case_metrics["total_files"] = len(plagiarized_files) + len(non_plagiarized_files)
+                
+                with open(original_file, 'r') as f:
+                    text_samples.append(f.read())
+                
+                similarities = []
+                for file in plagiarized_files + non_plagiarized_files:
+                    try:
+                        token_overlap = calculate_token_overlap(original_file, file, metrics_collector)
+                        ast_similarity = calculate_ast_similarity(original_file, file, metrics_collector)
+                        
+                        with open(file, 'r') as f:
+                            text_samples.append(f.read())
+                        
+                        features.append([token_overlap, ast_similarity])
+                        label = get_label(original_file, file)
+                        labels.append(label)
+                        similarities.append(label)
+                        file_paths.append(file)
+                    except Exception as e:
+                        print(f"Error procesando archivo {file}: {str(e)}")
+                        continue
+                
+                if similarities:
+                    case_metrics["avg_similarity"] = float(np.mean(similarities))
+                case_metrics["processing_time"] = metrics_collector.stop_timing()
+                metrics_collector.case_metrics[f"case_{case_idx}"] = case_metrics
+                
+            except Exception as e:
+                print(f"Error procesando caso {case_idx}: {str(e)}")
+                continue
+        
+        if not features or not labels:
+            raise ValueError("No se pudieron extraer características o etiquetas")
+        
+        # Entrenamiento y evaluación
+        X = np.array(features)
+        y = np.array(labels)
+        
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        
+        print("Entrenando modelo...")
+        classifier = RandomForestRegressor(n_estimators=100, random_state=42)
+        classifier.fit(X_train, y_train)
+        
+        print("Evaluando modelo...")
+        y_pred = classifier.predict(X_test)
+        
+        print("Generando reporte de métricas...")
+        metrics_report = generate_metrics_report(metrics_collector, y_test, y_pred, file_paths, classifier)
+        
+        # Guardar modelo
+        try:
+            classifier_path = model_dir / "classifier.joblib"
+            dump(classifier, classifier_path)
+            print(f"Modelo guardado en: {classifier_path}")
+        except Exception as e:
+            print(f"Error al guardar el modelo: {e}")
+        
+        if "error" not in metrics_report:
+            print("\nResumen de métricas principales:")
+            print(f"MAE: {metrics_report['Model Performance']['Mean Absolute Error']:.4f}")
+            print(f"Accuracy: {metrics_report['Model Performance']['Accuracy']:.4f}")
+            print(f"F1 Score: {metrics_report['Model Performance']['F1 Score']:.4f}")
+            print(f"Tiempo promedio de procesamiento: {metrics_report['Execution Time']['Mean Processing Time']:.4f} segundos")
+        else:
+            print("\nError al generar métricas:", metrics_report["error"])
+        
+        print("\nReporte completo guardado en: metrics_report.json y metrics_report.txt")
+        
+    except Exception as e:
+        print(f"Error general en la ejecución: {str(e)}")
+        return 1
     
-    print("\nResumen de métricas principales:")
-    print(f"MAE: {metrics_report['Model Performance']['Mean Absolute Error']:.4f}")
-    print(f"Accuracy: {metrics_report['Model Performance']['Accuracy']:.4f}")
-    print(f"F1 Score: {metrics_report['Model Performance']['F1 Score']:.4f}")
-    print(f"Tiempo promedio de procesamiento: {metrics_report['Execution Time']['Mean Processing Time']:.4f} segundos")
-    print("\nReporte completo guardado en: metrics_report.txt")
+    return 0
 
 if __name__ == "__main__":
-    main()
+    exit_code = main()
+    exit(exit_code)
