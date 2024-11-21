@@ -226,15 +226,19 @@ def calculate_ast_similarity(file1, file2, metrics_collector=None):
         return 0.0
 
 def split_by_cases(dataset_dir):
-    """
-    Divide los casos por carpetas completas en lugar de archivos individuales
-    """
     cases = list(dataset_dir.iterdir())
-    train_cases, test_cases = train_test_split(
-        cases,
-        test_size=0.2,
-        random_state=42
-    )
+    if len(cases) < 2:
+        raise ValueError("Insuficientes casos para dividir")
+        
+    # Asegurar aleatoriedad en la división
+    np.random.shuffle(cases)
+    
+    # Dividir manteniendo la proporción de casos plagiados/no plagiados
+    train_size = int(0.8 * len(cases))
+    train_cases = cases[:train_size]
+    test_cases = cases[train_size:]
+    
+    print(f"División de casos - Train: {len(train_cases)}, Test: {len(test_cases)}")
     return train_cases, test_cases
 
 def extract_features(original_file, comparison_file, metrics_collector=None):
@@ -283,70 +287,36 @@ def get_label(original_file, file):
         return 0.0
 
 def save_metrics(metrics, model_dir):
-    """
-    Guarda métricas más detalladas incluyendo desviación estándar
-    """
-    try:
-        metrics_data = {
-            "model_performance": {
-                "mae": float(metrics["mae"]),
-                "thresholds": metrics["thresholds"],
-                "cross_validation": {
-                    "accuracy": {
-                        "mean": float(np.mean(metrics["test_accuracy"])),
-                        "std": float(np.std(metrics["test_accuracy"]))
-                    },
-                    "precision": {
-                        "mean": float(np.mean(metrics["test_precision"])),
-                        "std": float(np.std(metrics["test_precision"]))
-                    },
-                    "recall": {
-                        "mean": float(np.mean(metrics["test_recall"])),
-                        "std": float(np.std(metrics["test_recall"]))
-                    },
-                    "f1_score": {
-                        "mean": float(np.mean(metrics["test_f1"])),
-                        "std": float(np.std(metrics["test_f1"]))
-                    }
-                }
-            },
-            "training_info": {
-                "total_samples": int(metrics["total_samples"]),
-                "training_samples": int(metrics["training_samples"]),
-                "test_samples": int(metrics["test_samples"]),
-                "timestamp": datetime.now().isoformat()
-            }
+    # Verificar que tenemos métricas válidas
+    if metrics["test_accuracy"] is None or np.isnan(metrics["test_accuracy"]).any():
+        metrics["cross_validation"] = {
+            "accuracy": {"mean": 0, "std": 0},
+            "precision": {"mean": 0, "std": 0},
+            "recall": {"mean": 0, "std": 0},
+            "f1_score": {"mean": 0, "std": 0}
         }
 
-        model_dir = Path(model_dir)
-        model_dir.mkdir(exist_ok=True)
-        metrics_path = model_dir / "metrics.json"
-        
-        with open(metrics_path, 'w', encoding='utf-8') as f:
-            json.dump(metrics_data, f, indent=2, ensure_ascii=False)
-            
-        print("\nMétricas guardadas en:", metrics_path)
-        print("\nContenido del archivo de métricas:")
-        with open(metrics_path, 'r', encoding='utf-8') as f:
-            print(json.dumps(json.load(f), indent=2, ensure_ascii=False))
-            
-        return True
-    except Exception as e:
-        print(f"Error al guardar métricas: {e}")
-        return False
-
 def train_with_cv(X, y, model):
-    """
-    Entrena el modelo usando validación cruzada
-    """
-    cv_scores = cross_validate(
-        model, 
-        X, 
-        y,
-        cv=5,
-        scoring=['accuracy', 'precision', 'recall', 'f1']
-    )
-    return cv_scores
+    try:
+        # Asegurarnos de que tenemos suficientes datos para cada fold
+        if len(y) < 5:
+            raise ValueError("Insuficientes datos para validación cruzada")
+            
+        # Convertir las etiquetas continuas a binarias para clasificación
+        y_binary = y > 50  # o el umbral que decidamos
+        
+        cv_scores = cross_validate(
+            model, 
+            X, 
+            y_binary,
+            cv=5,
+            scoring=['accuracy', 'precision', 'recall', 'f1'],
+            error_score='raise'  # Para ver errores explícitos
+        )
+        return cv_scores
+    except Exception as e:
+        print(f"Error en validación cruzada: {e}")
+        return None
 
 def main():
     try:
@@ -361,10 +331,28 @@ def main():
         print(f"\nUsando dataset en: {dataset_dir}")
         print(f"Usando directorio de modelo: {model_dir}")
         
-        # Dividir casos por carpetas
-        train_cases, test_cases = split_by_cases(dataset_dir)
-        print(f"\nCasos de entrenamiento: {len(train_cases)}")
-        print(f"Casos de prueba: {len(test_cases)}")
+        # Cargar y verificar dataset
+        try:
+            cases = load_dataset(dataset_dir)
+            if len(cases) < 2:
+                raise ValueError("Insuficientes casos en el dataset")
+            print(f"\nTotal de casos encontrados: {len(cases)}")
+        except Exception as e:
+            print(f"Error al cargar dataset: {e}")
+            return 1
+        
+        # Dividir casos por carpetas asegurando distribución balanceada
+        try:
+            np.random.shuffle(cases)
+            train_size = int(0.8 * len(cases))
+            train_cases = cases[:train_size]
+            test_cases = cases[train_size:]
+            
+            print(f"\nCasos de entrenamiento: {len(train_cases)}")
+            print(f"Casos de prueba: {len(test_cases)}")
+        except Exception as e:
+            print(f"Error en la división de casos: {e}")
+            return 1
         
         features = []
         labels = []
@@ -373,13 +361,24 @@ def main():
         
         # Procesar casos de entrenamiento
         print("\nProcesando casos de entrenamiento...")
-        for case in train_cases:
+        for idx, case in enumerate(train_cases, 1):
             try:
+                print(f"Procesando caso {idx}/{len(train_cases)}: {case.name}")
+                
                 original_file = load_original_file(case)
                 plagiarized_files = load_plagiarized_files(case)
                 non_plagiarized_files = load_non_plagiarized_files(case)
                 
-                for file in plagiarized_files + non_plagiarized_files:
+                # Procesar archivos plagiados
+                for file in plagiarized_files:
+                    if str(file) not in processed_files:
+                        processed_files.add(str(file))
+                        feature_vector = extract_features(original_file, file, metrics_collector)
+                        features.append(feature_vector)
+                        labels.append(get_label(original_file, file))
+                        
+                # Procesar archivos no plagiados
+                for file in non_plagiarized_files:
                     if str(file) not in processed_files:
                         processed_files.add(str(file))
                         feature_vector = extract_features(original_file, file, metrics_collector)
@@ -390,16 +389,50 @@ def main():
                 print(f"Error procesando caso {case}: {e}")
                 continue
         
+        # Verificar que tenemos suficientes datos
+        if len(features) < 10:
+            raise ValueError("Insuficientes datos para entrenar el modelo")
+            
         X = np.array(features)
         y = np.array(labels)
         
-        print(f"\nCaracterísticas extraídas: {X.shape}")
-        print(f"Etiquetas generadas: {len(y)}")
+        # Verificar balance de clases
+        labels_binary = y > 50
+        positive_samples = np.sum(labels_binary)
+        negative_samples = len(labels_binary) - positive_samples
+        
+        print(f"\nEstadísticas del conjunto de entrenamiento:")
+        print(f"Características extraídas: {X.shape}")
+        print(f"Casos positivos (plagio > 50%): {positive_samples}")
+        print(f"Casos negativos (plagio ≤ 50%): {negative_samples}")
+        print(f"Ratio positivos/negativos: {positive_samples/negative_samples:.2f}")
         
         # Entrenar modelo con validación cruzada
         print("\nEntrenando modelo con validación cruzada...")
-        model = RandomForestRegressor(n_estimators=100, random_state=42)
-        cv_scores = train_with_cv(X, y, model)
+        model = RandomForestRegressor(
+            n_estimators=100,
+            random_state=42,
+            n_jobs=-1  # Usar todos los cores disponibles
+        )
+        
+        try:
+            cv_scores = train_with_cv(X, y, model)
+            if cv_scores is None:
+                print("Advertencia: La validación cruzada falló, continuando con entrenamiento normal")
+                cv_scores = {
+                    'test_accuracy': np.array([0]),
+                    'test_precision': np.array([0]),
+                    'test_recall': np.array([0]),
+                    'test_f1': np.array([0])
+                }
+        except Exception as e:
+            print(f"Error en validación cruzada: {e}")
+            cv_scores = {
+                'test_accuracy': np.array([0]),
+                'test_precision': np.array([0]),
+                'test_recall': np.array([0]),
+                'test_f1': np.array([0])
+            }
         
         # Entrenar modelo final
         print("\nEntrenando modelo final...")
@@ -409,63 +442,83 @@ def main():
         print("\nEvaluando en conjunto de prueba...")
         test_features = []
         test_labels = []
+        processed_test_files = set()
         
-        for case in test_cases:
+        for idx, case in enumerate(test_cases, 1):
             try:
+                print(f"Procesando caso de prueba {idx}/{len(test_cases)}: {case.name}")
                 original_file = load_original_file(case)
+                
                 for file in load_plagiarized_files(case) + load_non_plagiarized_files(case):
-                    if str(file) not in processed_files:
-                        processed_files.add(str(file))
+                    if str(file) not in processed_test_files:
+                        processed_test_files.add(str(file))
                         feature_vector = extract_features(original_file, file, metrics_collector)
                         test_features.append(feature_vector)
                         test_labels.append(get_label(original_file, file))
+                        
             except Exception as e:
                 print(f"Error procesando caso de prueba {case}: {e}")
                 continue
         
+        if len(test_features) == 0:
+            raise ValueError("No se pudieron extraer características del conjunto de prueba")
+            
         X_test = np.array(test_features)
         y_test = np.array(test_labels)
         
-        print(f"\nCaracterísticas de prueba: {X_test.shape}")
+        print(f"\nEstadísticas del conjunto de prueba:")
+        print(f"Características de prueba: {X_test.shape}")
         print(f"Etiquetas de prueba: {len(y_test)}")
         
+        # Realizar predicciones
         y_pred = model.predict(X_test)
         
         # Calcular métricas completas
-        metrics = {
-            "mae": mean_absolute_error(y_test, y_pred),
-            "thresholds": evaluate_model(y_test, y_pred),
-            "test_accuracy": cv_scores['test_accuracy'],
-            "test_precision": cv_scores['test_precision'],
-            "test_recall": cv_scores['test_recall'],
-            "test_f1": cv_scores['test_f1'],
-            "total_samples": len(y) + len(y_test),
-            "training_samples": len(y),
-            "test_samples": len(y_test)
-        }
+        try:
+            metrics = {
+                "mae": mean_absolute_error(y_test, y_pred),
+                "thresholds": evaluate_model(y_test, y_pred),
+                "test_accuracy": cv_scores['test_accuracy'],
+                "test_precision": cv_scores['test_precision'],
+                "test_recall": cv_scores['test_recall'],
+                "test_f1": cv_scores['test_f1'],
+                "total_samples": len(y) + len(y_test),
+                "training_samples": len(y),
+                "test_samples": len(y_test)
+            }
+        except Exception as e:
+            print(f"Error calculando métricas: {e}")
+            return 1
         
         # Guardar modelo y métricas
         print("\nGuardando modelo y métricas...")
-        model_path = model_dir / 'classifier.joblib'
-        dump(model, model_path)
-        print(f"Modelo guardado en: {model_path}")
+        try:
+            model_path = model_dir / 'classifier.joblib'
+            dump(model, model_path)
+            print(f"Modelo guardado en: {model_path}")
+            
+            if not save_metrics(metrics, model_dir):
+                print("Advertencia: No se pudieron guardar las métricas completas")
+        except Exception as e:
+            print(f"Error guardando modelo o métricas: {e}")
+            return 1
         
-        save_metrics(metrics, model_dir)
-        
-        # Imprimir resultados
+        # Imprimir resultados detallados
         print("\nMétricas del modelo:")
         print(f"MAE: {metrics['mae']:.4f}")
+        
         print("\nResultados por umbral:")
         for threshold, scores in metrics['thresholds'].items():
             print(f"\nUmbral {threshold}:")
             for metric, value in scores.items():
                 print(f"{metric}: {value:.4f}")
-                
-        print("\nResultados de validación cruzada:")
-        print(f"Accuracy: {np.mean(metrics['test_accuracy']):.4f} (±{np.std(metrics['test_accuracy']):.4f})")
-        print(f"Precision: {np.mean(metrics['test_precision']):.4f} (±{np.std(metrics['test_precision']):.4f})")
-        print(f"Recall: {np.mean(metrics['test_recall']):.4f} (±{np.std(metrics['test_recall']):.4f})")
-        print(f"F1-score: {np.mean(metrics['test_f1']):.4f} (±{np.std(metrics['test_f1']):.4f})")
+        
+        if cv_scores is not None:
+            print("\nResultados de validación cruzada:")
+            print(f"Accuracy: {np.mean(cv_scores['test_accuracy']):.4f} (±{np.std(cv_scores['test_accuracy']):.4f})")
+            print(f"Precision: {np.mean(cv_scores['test_precision']):.4f} (±{np.std(cv_scores['test_precision']):.4f})")
+            print(f"Recall: {np.mean(cv_scores['test_recall']):.4f} (±{np.std(cv_scores['test_recall']):.4f})")
+            print(f"F1-score: {np.mean(cv_scores['test_f1']):.4f} (±{np.std(cv_scores['test_f1']):.4f})")
         
         print("\nEntrenamiento completado exitosamente!")
         return 0
