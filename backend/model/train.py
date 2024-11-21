@@ -238,6 +238,62 @@ def get_label(original_file, file):
         print(f"Error al calcular etiqueta: {e}")
         return 0.0
 
+def save_metrics(metrics, model_dir):
+    """
+    Guarda las métricas en un archivo JSON y muestra un resumen
+    """
+    try:
+        # Asegurar que el directorio existe
+        model_dir = Path(model_dir)
+        model_dir.mkdir(exist_ok=True)
+        
+        # Preparar las métricas
+        metrics_data = {
+            "model_performance": {
+                "mae": float(metrics["model_performance"]["mae"]),
+                "accuracy": float(metrics["model_performance"]["accuracy"]),
+                "precision": float(metrics["model_performance"]["precision"]),
+                "recall": float(metrics["model_performance"]["recall"]),
+                "f1_score": float(metrics["model_performance"]["f1_score"])
+            },
+            "training_info": {
+                "total_samples": int(metrics["training_info"]["total_samples"]),
+                "training_samples": int(metrics["training_info"]["training_samples"]),
+                "test_samples": int(metrics["training_info"]["test_samples"]),
+                "timestamp": datetime.now().isoformat()
+            }
+        }
+        
+        # Guardar métricas
+        metrics_path = model_dir / "metrics.json"
+        print(f"\nGuardando métricas en: {metrics_path}")
+        
+        with open(metrics_path, 'w', encoding='utf-8') as f:
+            json.dump(metrics_data, f, indent=2, ensure_ascii=False)
+        
+        # Verificar que el archivo se creó
+        if not metrics_path.exists():
+            raise FileNotFoundError(f"El archivo de métricas no se creó en {metrics_path}")
+            
+        # Mostrar contenido del archivo para verificación
+        print("\nContenido del archivo de métricas:")
+        with open(metrics_path, 'r', encoding='utf-8') as f:
+            print(json.dumps(json.load(f), indent=2, ensure_ascii=False))
+            
+        return True
+        
+    except Exception as e:
+        print(f"Error al guardar métricas: {e}")
+        # Intentar guardar en un archivo alternativo
+        try:
+            backup_path = model_dir / "metrics_backup.json"
+            with open(backup_path, 'w', encoding='utf-8') as f:
+                json.dump(metrics_data, f, indent=2, ensure_ascii=False)
+            print(f"Métricas guardadas en archivo de respaldo: {backup_path}")
+        except Exception as backup_error:
+            print(f"También falló el guardado de respaldo: {backup_error}")
+        return False
+
 def main():
     try:
         print("Iniciando entrenamiento del modelo Clonbusters...")
@@ -314,7 +370,7 @@ def main():
         print("Evaluando modelo...")
         y_pred = classifier.predict(X_test)
         
-        # Calcular y guardar métricas
+        # Calcular métricas
         metrics = {
             "model_performance": {
                 "mae": float(mean_absolute_error(y_test, y_pred)),
@@ -326,32 +382,31 @@ def main():
             "training_info": {
                 "total_samples": len(y),
                 "training_samples": len(y_train),
-                "test_samples": len(y_test),
-                "timestamp": datetime.now().isoformat()
+                "test_samples": len(y_test)
             }
         }
         
-        # Guardar modelo y métricas
-        try:
-            model_path = model_dir / "classifier.joblib"
-            metrics_path = model_dir / "metrics.json"
+        # Guardar modelo
+        model_path = Path('model/classifier.joblib')
+        print(f"\nGuardando modelo en {model_path}")
+        dump(classifier, model_path)
+        
+        # Intentar guardar métricas
+        if not save_metrics(metrics, 'model'):
+            print("No se pudieron guardar las métricas en el archivo principal")
             
-            print(f"\nGuardando modelo en {model_path}")
-            dump(classifier, model_path)
-            
-            print(f"Guardando métricas en {metrics_path}")
-            with open(metrics_path, 'w') as f:
-                json.dump(metrics, f, indent=2)
-            
-            print("\nMétricas del modelo:")
-            print(f"MAE: {metrics['model_performance']['mae']:.4f}")
-            print(f"Accuracy: {metrics['model_performance']['accuracy']:.4f}")
-            print(f"F1 Score: {metrics['model_performance']['f1_score']:.4f}")
-            
-        except Exception as e:
-            print(f"Error al guardar modelo o métricas: {e}")
-            return 1
-            
+        # Imprimir métricas en consola
+        print("\nMétricas del modelo:")
+        print(f"MAE: {metrics['model_performance']['mae']:.4f}")
+        print(f"Accuracy: {metrics['model_performance']['accuracy']:.4f}")
+        print(f"F1 Score: {metrics['model_performance']['f1_score']:.4f}")
+        
+        # Verificar archivos generados
+        print("\nArchivos generados en el directorio model:")
+        model_dir = Path('model')
+        for file in model_dir.glob('*'):
+            print(f"- {file.name} ({file.stat().st_size} bytes)")
+        
         return 0
         
     except Exception as e:
