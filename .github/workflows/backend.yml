@@ -24,50 +24,82 @@ jobs:
         pip install -r backend/requirements.txt
         pip install javalang scikit-learn numpy pandas joblib
         
-    - name: List initial directory structure
+    - name: Create directories
       run: |
-        echo "Initial directory structure:"
-        ls -R
-        
-    - name: Create and verify backend directories
-      run: |
-        mkdir -p backend/data/IR-Plag-Dataset
         mkdir -p backend/model
-        echo "Created directories structure:"
-        ls -R backend/
-        
-    # Asumiendo que el dataset está en el repositorio en la carpeta correcta
-    - name: Verify dataset location
-      run: |
-        echo "Dataset location check:"
-        if [ -d "backend/data/IR-Plag-Dataset" ]; then
-          echo "Dataset directory exists"
-          ls -la backend/data/IR-Plag-Dataset
-        else
-          echo "Dataset directory not found"
-          exit 1
-        fi
+        mkdir -p backend/data/IR-Plag-Dataset
         
     - name: Train model
       run: |
         cd backend
-        echo "Current directory: $(pwd)"
-        echo "Contents of current directory:"
-        ls -la
         python model/train.py
       env:
         DATASET_PATH: "data/IR-Plag-Dataset"
         
-    - name: Verify model artifacts
+    - name: Display model metrics
       run: |
-        echo "Checking model artifacts..."
-        ls -la backend/model/
+        echo "=== Métricas del Modelo ==="
+        if [ -f "backend/model/metrics.json" ]; then
+          echo "Contenido de metrics.json:"
+          cat backend/model/metrics.json
+        else
+          echo "metrics.json no encontrado"
+          echo "Contenido del directorio model:"
+          ls -la backend/model/
+        fi
         
-    - name: Save model artifacts
+    - name: Generate metrics report
+      run: |
+        cd backend
+        echo "=== Reporte de Métricas ===" > model/metrics_report.txt
+        echo "Timestamp: $(date)" >> model/metrics_report.txt
+        echo "\nMétricas del modelo:" >> model/metrics_report.txt
+        if [ -f "model/metrics.json" ]; then
+          echo "$(cat model/metrics.json)" >> model/metrics_report.txt
+        else
+          echo "No se encontró el archivo de métricas" >> model/metrics_report.txt
+        fi
+        
+        # Agregar información del último commit
+        echo "\nInformación del commit:" >> model/metrics_report.txt
+        echo "Commit: $GITHUB_SHA" >> model/metrics_report.txt
+        echo "Branch: $GITHUB_REF" >> model/metrics_report.txt
+        
+    - name: Save artifacts
       uses: actions/upload-artifact@v3
       with:
         name: model-artifacts
         path: |
-          backend/model/*.joblib
+          backend/model/classifier.joblib
+          backend/model/metrics.json
+          backend/model/metrics_report.txt
+        retention-days: 90
+        
+    - name: Verify artifacts
+      run: |
+        echo "=== Verificando artefactos ==="
+        echo "Contenido del directorio backend/model:"
+        ls -la backend/model/
+        
+        if [ -f "backend/model/classifier.joblib" ]; then
+          echo "✓ classifier.joblib encontrado"
+          echo "Tamaño: $(ls -lh backend/model/classifier.joblib | awk '{print $5}')"
+        else
+          echo "✗ classifier.joblib no encontrado"
+        fi
+        
+        if [ -f "backend/model/metrics.json" ]; then
+          echo "✓ metrics.json encontrado"
+          echo "Tamaño: $(ls -lh backend/model/metrics.json | awk '{print $5}')"
+        else
+          echo "✗ metrics.json no encontrado"
+        fi
+        
+        if [ -f "backend/model/metrics_report.txt" ]; then
+          echo "✓ metrics_report.txt encontrado"
+          echo "Tamaño: $(ls -lh backend/model/metrics_report.txt | awk '{print $5}')"
+        else
+          echo "✗ metrics_report.txt no encontrado"
+        fi
           backend/model/*.json
         retention-days: 90
