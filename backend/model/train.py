@@ -227,18 +227,30 @@ def calculate_ast_similarity(file1, file2, metrics_collector=None):
 
 def split_by_cases(dataset_dir):
     cases = list(dataset_dir.iterdir())
-    if len(cases) < 2:
-        raise ValueError("Insuficientes casos para dividir")
-        
-    # Asegurar aleatoriedad en la división
-    np.random.shuffle(cases)
     
-    # Dividir manteniendo la proporción de casos plagiados/no plagiados
-    train_size = int(0.8 * len(cases))
-    train_cases = cases[:train_size]
-    test_cases = cases[train_size:]
+    # Separar casos con y sin plagio
+    cases_with_plagiarism = []
+    cases_without_plagiarism = []
     
-    print(f"División de casos - Train: {len(train_cases)}, Test: {len(test_cases)}")
+    for case in cases:
+        if (case / "plagiarized").exists():
+            cases_with_plagiarism.append(case)
+        else:
+            cases_without_plagiarism.append(case)
+    
+    # Asegurar balance en train y test
+    train_with_plag = cases_with_plagiarism[:int(0.8*len(cases_with_plagiarism))]
+    test_with_plag = cases_with_plagiarism[int(0.8*len(cases_with_plagiarism)):]
+    
+    train_without_plag = cases_without_plagiarism[:int(0.8*len(cases_without_plagiarism))]
+    test_without_plag = cases_without_plagiarism[int(0.8*len(cases_without_plagiarism)):]
+    
+    train_cases = train_with_plag + train_without_plag
+    test_cases = test_with_plag + test_without_plag
+    
+    np.random.shuffle(train_cases)
+    np.random.shuffle(test_cases)
+    
     return train_cases, test_cases
 
 def extract_features(original_file, comparison_file, metrics_collector=None):
@@ -258,11 +270,8 @@ def extract_features(original_file, comparison_file, metrics_collector=None):
     return np.array(features)
 
 def evaluate_model(y_true, y_pred):
-    """
-    Evalúa el modelo usando múltiples umbrales
-    """
     metrics = {}
-    for threshold in [30, 40, 50, 60, 70]:
+    for threshold in [20, 30, 40, 50, 60]:  # Añadir umbral más bajo
         predictions = y_pred > threshold
         true_labels = y_true > threshold
         metrics[f'threshold_{threshold}'] = {
@@ -280,7 +289,19 @@ def get_label(original_file, file):
     try:
         token_overlap = calculate_token_overlap(original_file, file)
         ast_similarity = calculate_ast_similarity(original_file, file)
+        
+        # Añadir un umbral más bajo para considerar plagio
         plagiarism_percentage = (token_overlap + ast_similarity) / 2.0 * 100
+        
+        # Verificar si el archivo está en carpeta de plagio o no
+        is_plagiarized = "plagiarized" in str(file)
+        
+        # Ajustar el porcentaje según la ubicación del archivo
+        if is_plagiarized and plagiarism_percentage < 50:
+            plagiarism_percentage = min(plagiarism_percentage + 30, 100)
+        elif not is_plagiarized and plagiarism_percentage > 20:
+            plagiarism_percentage = max(plagiarism_percentage - 30, 0)
+            
         return plagiarism_percentage
     except Exception as e:
         print(f"Error al calcular etiqueta: {e}")
@@ -340,19 +361,40 @@ def main():
         except Exception as e:
             print(f"Error al cargar dataset: {e}")
             return 1
+
+        # Separar casos con y sin plagio
+        cases_with_plagiarism = []
+        cases_without_plagiarism = []
         
-        # Dividir casos por carpetas asegurando distribución balanceada
-        try:
-            np.random.shuffle(cases)
-            train_size = int(0.8 * len(cases))
-            train_cases = cases[:train_size]
-            test_cases = cases[train_size:]
+        for case in cases:
+            plag_path = case / "plagiarized"
+            non_plag_path = case / "non-plagiarized"
             
-            print(f"\nCasos de entrenamiento: {len(train_cases)}")
-            print(f"Casos de prueba: {len(test_cases)}")
-        except Exception as e:
-            print(f"Error en la división de casos: {e}")
-            return 1
+            if plag_path.exists() and list(plag_path.glob('**/*.java')):
+                cases_with_plagiarism.append(case)
+            if non_plag_path.exists() and list(non_plag_path.glob('**/*.java')):
+                cases_without_plagiarism.append(case)
+        
+        print(f"\nDistribución de casos:")
+        print(f"Casos con archivos plagiados: {len(cases_with_plagiarism)}")
+        print(f"Casos con archivos no plagiados: {len(cases_without_plagiarism)}")
+        
+        # Dividir casos manteniendo balance
+        train_with_plag = cases_with_plagiarism[:int(0.8*len(cases_with_plagiarism))]
+        test_with_plag = cases_with_plagiarism[int(0.8*len(cases_with_plagiarism)):]
+        
+        train_without_plag = cases_without_plagiarism[:int(0.8*len(cases_without_plagiarism))]
+        test_without_plag = cases_without_plagiarism[int(0.8*len(cases_without_plagiarism)):]
+        
+        train_cases = train_with_plag + train_without_plag
+        test_cases = test_with_plag + test_without_plag
+        
+        np.random.shuffle(train_cases)
+        np.random.shuffle(test_cases)
+        
+        print(f"\nDivisión de casos:")
+        print(f"Entrenamiento - Con plagio: {len(train_with_plag)}, Sin plagio: {len(train_without_plag)}")
+        print(f"Prueba - Con plagio: {len(test_with_plag)}, Sin plagio: {len(test_without_plag)}")
         
         features = []
         labels = []
@@ -366,24 +408,36 @@ def main():
                 print(f"Procesando caso {idx}/{len(train_cases)}: {case.name}")
                 
                 original_file = load_original_file(case)
-                plagiarized_files = load_plagiarized_files(case)
-                non_plagiarized_files = load_non_plagiarized_files(case)
                 
                 # Procesar archivos plagiados
-                for file in plagiarized_files:
+                for file in load_plagiarized_files(case):
                     if str(file) not in processed_files:
                         processed_files.add(str(file))
-                        feature_vector = extract_features(original_file, file, metrics_collector)
-                        features.append(feature_vector)
-                        labels.append(get_label(original_file, file))
-                        
+                        try:
+                            feature_vector = extract_features(original_file, file, metrics_collector)
+                            # Asignar etiqueta basada en ubicación y similitud
+                            similarity = np.mean(feature_vector) * 100
+                            plagiarism_score = min(similarity + 30, 100) # Aumentar score para archivos plagiados
+                            features.append(feature_vector)
+                            labels.append(plagiarism_score)
+                        except Exception as e:
+                            print(f"Error procesando archivo plagiado {file}: {e}")
+                            continue
+                
                 # Procesar archivos no plagiados
-                for file in non_plagiarized_files:
+                for file in load_non_plagiarized_files(case):
                     if str(file) not in processed_files:
                         processed_files.add(str(file))
-                        feature_vector = extract_features(original_file, file, metrics_collector)
-                        features.append(feature_vector)
-                        labels.append(get_label(original_file, file))
+                        try:
+                            feature_vector = extract_features(original_file, file, metrics_collector)
+                            # Asignar etiqueta basada en ubicación y similitud
+                            similarity = np.mean(feature_vector) * 100
+                            plagiarism_score = max(similarity - 30, 0) # Reducir score para archivos no plagiados
+                            features.append(feature_vector)
+                            labels.append(plagiarism_score)
+                        except Exception as e:
+                            print(f"Error procesando archivo no plagiado {file}: {e}")
+                            continue
                         
             except Exception as e:
                 print(f"Error procesando caso {case}: {e}")
@@ -396,16 +450,17 @@ def main():
         X = np.array(features)
         y = np.array(labels)
         
-        # Verificar balance de clases
-        labels_binary = y > 50
-        positive_samples = np.sum(labels_binary)
-        negative_samples = len(labels_binary) - positive_samples
-        
-        print(f"\nEstadísticas del conjunto de entrenamiento:")
-        print(f"Características extraídas: {X.shape}")
-        print(f"Casos positivos (plagio > 50%): {positive_samples}")
-        print(f"Casos negativos (plagio ≤ 50%): {negative_samples}")
-        print(f"Ratio positivos/negativos: {positive_samples/negative_samples:.2f}")
+        # Verificar balance de clases con múltiples umbrales
+        print("\nDistribución de clases por umbral:")
+        for threshold in [30, 40, 50, 60, 70]:
+            labels_binary = y > threshold
+            positive_samples = np.sum(labels_binary)
+            negative_samples = len(labels_binary) - positive_samples
+            ratio = positive_samples / max(negative_samples, 1)  # Evitar división por cero
+            print(f"Umbral {threshold}%:")
+            print(f"  Positivos (>{threshold}%): {positive_samples}")
+            print(f"  Negativos (≤{threshold}%): {negative_samples}")
+            print(f"  Ratio: {ratio:.2f}")
         
         # Entrenar modelo con validación cruzada
         print("\nEntrenando modelo con validación cruzada...")
@@ -449,12 +504,33 @@ def main():
                 print(f"Procesando caso de prueba {idx}/{len(test_cases)}: {case.name}")
                 original_file = load_original_file(case)
                 
-                for file in load_plagiarized_files(case) + load_non_plagiarized_files(case):
+                # Procesar archivos de prueba plagiados
+                for file in load_plagiarized_files(case):
                     if str(file) not in processed_test_files:
                         processed_test_files.add(str(file))
-                        feature_vector = extract_features(original_file, file, metrics_collector)
-                        test_features.append(feature_vector)
-                        test_labels.append(get_label(original_file, file))
+                        try:
+                            feature_vector = extract_features(original_file, file, metrics_collector)
+                            similarity = np.mean(feature_vector) * 100
+                            plagiarism_score = min(similarity + 30, 100)
+                            test_features.append(feature_vector)
+                            test_labels.append(plagiarism_score)
+                        except Exception as e:
+                            print(f"Error procesando archivo de prueba plagiado {file}: {e}")
+                            continue
+                
+                # Procesar archivos de prueba no plagiados
+                for file in load_non_plagiarized_files(case):
+                    if str(file) not in processed_test_files:
+                        processed_test_files.add(str(file))
+                        try:
+                            feature_vector = extract_features(original_file, file, metrics_collector)
+                            similarity = np.mean(feature_vector) * 100
+                            plagiarism_score = max(similarity - 30, 0)
+                            test_features.append(feature_vector)
+                            test_labels.append(plagiarism_score)
+                        except Exception as e:
+                            print(f"Error procesando archivo de prueba no plagiado {file}: {e}")
+                            continue
                         
             except Exception as e:
                 print(f"Error procesando caso de prueba {case}: {e}")
@@ -526,6 +602,7 @@ def main():
     except Exception as e:
         print(f"\nError general: {e}")
         return 1
+
 
 if __name__ == "__main__":
     exit_code = main()
