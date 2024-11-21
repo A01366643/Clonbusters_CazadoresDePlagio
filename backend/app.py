@@ -135,10 +135,10 @@ def calculate_semantic_similarity(code1: str, code2: str) -> float:
 @app.post("/api/analyze")
 async def analyze_code(
     original: UploadFile = File(...),
-    comparison_files: List[UploadFile] = File(...)
+    comparison_file: UploadFile = File(...)  # Cambiado de comparison_files a comparison_file
 ):
     """
-    Analiza la similitud entre el código original y los códigos de comparación.
+    Analiza la similitud entre el código original y el código de comparación.
     Retorna métricas de similitud.
     """
     try:
@@ -146,40 +146,32 @@ async def analyze_code(
         original_content = await original.read()
         original_content = original_content.decode('utf-8')
         
-        results = []
-        for comparison_file in comparison_files:
-            # Leer contenido del archivo de comparación
-            comparison_content = await comparison_file.read()
-            comparison_content = comparison_content.decode('utf-8')
-            
-            # Calcular diferentes tipos de similitud
-            token_similarity = calculate_token_similarity(original_content, comparison_content)
-            ast_similarity = calculate_ast_similarity(original_content, comparison_content)
-            semantic_similarity = calculate_semantic_similarity(original_content, comparison_content)
-            
-            # Calcular puntuación global (puedes ajustar los pesos)
-            overall_score = (
-                token_similarity * 0.3 +
-                ast_similarity * 0.3 +
-                semantic_similarity * 0.4
-            )
-            
-            # Determinar si es plagio basado en un umbral
-            is_plagiarism = overall_score > 70  # Puedes ajustar este umbral
-            
-            results.append({
-                "filename": comparison_file.filename,
-                "token_similarity": round(token_similarity, 1),
-                "ast_similarity": round(ast_similarity, 1),
-                "semantic_similarity": round(semantic_similarity, 1),
-                "overall_score": round(overall_score, 1),
-                "is_plagiarism": is_plagiarism
-            })
+        # Leer contenido del archivo de comparación
+        comparison_content = await comparison_file.read()
+        comparison_content = comparison_content.decode('utf-8')
         
-        # Por ahora, retornamos solo el primer resultado
-        # Podrías modificar esto para manejar múltiples resultados
-        return results[0] if results else {
-            "error": "No se pudo analizar el código"
+        # Calcular diferentes tipos de similitud
+        token_similarity = calculate_token_similarity(original_content, comparison_content)
+        ast_similarity = calculate_ast_similarity(original_content, comparison_content)
+        semantic_similarity = calculate_semantic_similarity(original_content, comparison_content)
+        
+        # Calcular puntuación global (puedes ajustar los pesos)
+        overall_score = (
+            token_similarity * 0.3 +
+            ast_similarity * 0.3 +
+            semantic_similarity * 0.4
+        )
+        
+        # Determinar si es plagio basado en un umbral
+        is_plagiarism = overall_score > 70  # Puedes ajustar este umbral
+        
+        return {
+            "filename": comparison_file.filename,
+            "token_similarity": round(token_similarity, 1),
+            "ast_similarity": round(ast_similarity, 1),
+            "semantic_similarity": round(semantic_similarity, 1),
+            "overall_score": round(overall_score, 1),
+            "is_plagiarism": is_plagiarism
         }
             
     except Exception as e:
