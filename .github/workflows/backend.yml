@@ -24,27 +24,39 @@ jobs:
         pip install -r backend/requirements.txt
         pip install javalang scikit-learn numpy pandas joblib
         
-    - name: List directory structure
+    - name: List initial directory structure
       run: |
-        echo "Current directory structure:"
+        echo "Initial directory structure:"
         ls -R
         
-    - name: Create directories
+    - name: Create and verify backend directories
       run: |
+        mkdir -p backend/data/IR-Plag-Dataset
         mkdir -p backend/model
-        mkdir -p data/IR-Plag-Dataset
+        echo "Created directories structure:"
+        ls -R backend/
         
+    # Asumiendo que el dataset está en el repositorio en la carpeta correcta
     - name: Verify dataset location
       run: |
-        echo "Checking dataset location..."
-        ls -la data/IR-Plag-Dataset || echo "Dataset directory is empty"
+        echo "Dataset location check:"
+        if [ -d "backend/data/IR-Plag-Dataset" ]; then
+          echo "Dataset directory exists"
+          ls -la backend/data/IR-Plag-Dataset
+        else
+          echo "Dataset directory not found"
+          exit 1
+        fi
         
     - name: Train model
       run: |
         cd backend
+        echo "Current directory: $(pwd)"
+        echo "Contents of current directory:"
+        ls -la
         python model/train.py
       env:
-        DATASET_PATH: "../data/IR-Plag-Dataset"
+        DATASET_PATH: "data/IR-Plag-Dataset"
         
     - name: Verify model artifacts
       run: |
@@ -58,4 +70,5 @@ jobs:
         path: |
           backend/model/*.joblib
           backend/model/*.json
+        retention-days: 90
         retention-days: 90
