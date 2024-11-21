@@ -271,14 +271,20 @@ def extract_features(original_file, comparison_file, metrics_collector=None):
 
 def evaluate_model(y_true, y_pred):
     metrics = {}
-    for threshold in [20, 30, 40, 50, 60]:  # Añadir umbral más bajo
-        predictions = y_pred > threshold
-        true_labels = y_true > threshold
+    for threshold in [20, 30, 40, 50, 60]:
+        y_true_binary = y_true > threshold
+        y_pred_binary = y_pred > threshold
+        
+        # Verificar que hay ambas clases
+        if len(np.unique(y_true_binary)) < 2:
+            print(f"Advertencia: Solo una clase presente para umbral {threshold}")
+            continue
+            
         metrics[f'threshold_{threshold}'] = {
-            'accuracy': accuracy_score(true_labels, predictions),
-            'precision': precision_score(true_labels, predictions),
-            'recall': recall_score(true_labels, predictions),
-            'f1': f1_score(true_labels, predictions)
+            'accuracy': accuracy_score(y_true_binary, y_pred_binary),
+            'precision': precision_score(y_true_binary, y_pred_binary),
+            'recall': recall_score(y_true_binary, y_pred_binary),
+            'f1': f1_score(y_true_binary, y_pred_binary)
         }
     return metrics
 
@@ -319,22 +325,38 @@ def save_metrics(metrics, model_dir):
 
 def train_with_cv(X, y, model):
     try:
-        # Asegurarnos de que tenemos suficientes datos para cada fold
         if len(y) < 5:
             raise ValueError("Insuficientes datos para validación cruzada")
-            
-        # Convertir las etiquetas continuas a binarias para clasificación
-        y_binary = y > 50  # o el umbral que decidamos
         
-        cv_scores = cross_validate(
-            model, 
-            X, 
-            y_binary,
-            cv=5,
-            scoring=['accuracy', 'precision', 'recall', 'f1'],
-            error_score='raise'  # Para ver errores explícitos
-        )
-        return cv_scores
+        cv_results = {
+            'test_accuracy': [],
+            'test_precision': [],
+            'test_recall': [],
+            'test_f1': []
+        }
+        
+        kf = KFold(n_splits=5, shuffle=True, random_state=42)
+        
+        for train_idx, val_idx in kf.split(X):
+            X_train_fold, X_val_fold = X[train_idx], X[val_idx]
+            y_train_fold, y_val_fold = y[train_idx], y[val_idx]
+            
+            # Entrenar en fold
+            model.fit(X_train_fold, y_train_fold)
+            y_pred_fold = model.predict(X_val_fold)
+            
+            # Convertir a binario para métricas
+            y_val_binary = y_val_fold > 50
+            y_pred_binary = y_pred_fold > 50
+            
+            # Calcular métricas
+            cv_results['test_accuracy'].append(accuracy_score(y_val_binary, y_pred_binary))
+            cv_results['test_precision'].append(precision_score(y_val_binary, y_pred_binary))
+            cv_results['test_recall'].append(recall_score(y_val_binary, y_pred_binary))
+            cv_results['test_f1'].append(f1_score(y_val_binary, y_pred_binary))
+        
+        return {k: np.array(v) for k, v in cv_results.items()}
+        
     except Exception as e:
         print(f"Error en validación cruzada: {e}")
         return None
@@ -406,39 +428,28 @@ def main():
         for idx, case in enumerate(train_cases, 1):
             try:
                 print(f"Procesando caso {idx}/{len(train_cases)}: {case.name}")
-                
                 original_file = load_original_file(case)
                 
-                # Procesar archivos plagiados
-                for file in load_plagiarized_files(case):
+                # Procesar todos los archivos
+                for file in (load_plagiarized_files(case) + load_non_plagiarized_files(case)):
                     if str(file) not in processed_files:
                         processed_files.add(str(file))
                         try:
                             feature_vector = extract_features(original_file, file, metrics_collector)
-                            # Asignar etiqueta basada en ubicación y similitud
                             similarity = np.mean(feature_vector) * 100
-                            plagiarism_score = min(similarity + 30, 100) # Aumentar score para archivos plagiados
+                            
+                            if "non-plagiarized" in str(file):
+                                plagiarism_score = max(similarity - 40, 0)  # Reducir más para no plagiados
+                            else:
+                                plagiarism_score = min(similarity + 20, 100)  # Aumentar menos para plagiados
+                            
                             features.append(feature_vector)
                             labels.append(plagiarism_score)
+                            
                         except Exception as e:
-                            print(f"Error procesando archivo plagiado {file}: {e}")
+                            print(f"Error procesando archivo {file}: {e}")
                             continue
-                
-                # Procesar archivos no plagiados
-                for file in load_non_plagiarized_files(case):
-                    if str(file) not in processed_files:
-                        processed_files.add(str(file))
-                        try:
-                            feature_vector = extract_features(original_file, file, metrics_collector)
-                            # Asignar etiqueta basada en ubicación y similitud
-                            similarity = np.mean(feature_vector) * 100
-                            plagiarism_score = max(similarity - 30, 0) # Reducir score para archivos no plagiados
-                            features.append(feature_vector)
-                            labels.append(plagiarism_score)
-                        except Exception as e:
-                            print(f"Error procesando archivo no plagiado {file}: {e}")
-                            continue
-                        
+                            
             except Exception as e:
                 print(f"Error procesando caso {case}: {e}")
                 continue
@@ -504,34 +515,26 @@ def main():
                 print(f"Procesando caso de prueba {idx}/{len(test_cases)}: {case.name}")
                 original_file = load_original_file(case)
                 
-                # Procesar archivos de prueba plagiados
-                for file in load_plagiarized_files(case):
+                # Procesar todos los archivos de prueba
+                for file in (load_plagiarized_files(case) + load_non_plagiarized_files(case)):
                     if str(file) not in processed_test_files:
                         processed_test_files.add(str(file))
                         try:
                             feature_vector = extract_features(original_file, file, metrics_collector)
                             similarity = np.mean(feature_vector) * 100
-                            plagiarism_score = min(similarity + 30, 100)
+                            
+                            if "non-plagiarized" in str(file):
+                                plagiarism_score = max(similarity - 40, 0)  # Reducir más para no plagiados
+                            else:
+                                plagiarism_score = min(similarity + 20, 100)  # Aumentar menos para plagiados
+                            
                             test_features.append(feature_vector)
                             test_labels.append(plagiarism_score)
+                            
                         except Exception as e:
-                            print(f"Error procesando archivo de prueba plagiado {file}: {e}")
+                            print(f"Error procesando archivo de prueba {file}: {e}")
                             continue
-                
-                # Procesar archivos de prueba no plagiados
-                for file in load_non_plagiarized_files(case):
-                    if str(file) not in processed_test_files:
-                        processed_test_files.add(str(file))
-                        try:
-                            feature_vector = extract_features(original_file, file, metrics_collector)
-                            similarity = np.mean(feature_vector) * 100
-                            plagiarism_score = max(similarity - 30, 0)
-                            test_features.append(feature_vector)
-                            test_labels.append(plagiarism_score)
-                        except Exception as e:
-                            print(f"Error procesando archivo de prueba no plagiado {file}: {e}")
-                            continue
-                        
+                            
             except Exception as e:
                 print(f"Error procesando caso de prueba {case}: {e}")
                 continue
@@ -602,7 +605,6 @@ def main():
     except Exception as e:
         print(f"\nError general: {e}")
         return 1
-
 
 if __name__ == "__main__":
     exit_code = main()
