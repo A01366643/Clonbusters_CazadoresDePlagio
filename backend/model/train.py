@@ -1,9 +1,10 @@
+import os
 from pathlib import Path
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import (
     mean_absolute_error, accuracy_score, precision_score, recall_score, 
-    f1_score, confusion_matrix, classification_report
+    f1_score, confusion_matrix
 )
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer
@@ -12,7 +13,7 @@ import javalang
 from joblib import dump
 import time
 from datetime import datetime
-import pandas as pd
+import json
 
 class MetricsCollector:
     def __init__(self):
@@ -33,9 +34,51 @@ class MetricsCollector:
             return execution_time
         return 0
 
+def get_dataset_path():
+    # Intentar obtener la ruta del dataset desde la variable de entorno
+    dataset_path = os.getenv('DATASET_PATH')
+    if dataset_path:
+        return Path(dataset_path)
+    
+    # Si no está en la variable de entorno, intentar encontrarlo relativamente
+    current_dir = Path(__file__).parent
+    possible_paths = [
+        current_dir.parent / "data" / "IR-Plag-Dataset",
+        current_dir.parent.parent / "data" / "IR-Plag-Dataset",
+        Path("data/IR-Plag-Dataset"),
+        Path("../data/IR-Plag-Dataset"),
+        Path("../../data/IR-Plag-Dataset")
+    ]
+    
+    for path in possible_paths:
+        if path.exists():
+            return path
+    
+    raise FileNotFoundError("No se pudo encontrar el directorio del dataset")
+
+def get_model_dir():
+    # Intentar usar el directorio actual del script
+    current_dir = Path(__file__).parent
+    model_dir = current_dir
+    
+    # Si estamos en GitHub Actions, usar el directorio especificado
+    if os.getenv('GITHUB_ACTIONS'):
+        model_dir = Path('model')
+    
+    # Crear el directorio si no existe
+    model_dir.mkdir(exist_ok=True)
+    return model_dir
+
 def load_dataset(path):
-    full_paths = list(path.iterdir())
-    return full_paths
+    try:
+        full_paths = list(path.iterdir())
+        print(f"Archivos encontrados en {path}:")
+        for p in full_paths:
+            print(f"  - {p}")
+        return full_paths
+    except Exception as e:
+        print(f"Error al cargar el dataset desde {path}: {e}")
+        raise
 
 def load_original_file(path):
     original_file_path_directory = str(path) + "/original"
@@ -224,128 +267,136 @@ def generate_metrics_report(metrics_collector, y_test, y_pred, test_files, model
 
 def main():
     try:
-        print("Iniciando entrenamiento del modelo Clonbusters con métricas...")
+        print("Iniciando entrenamiento del modelo Clonbusters...")
+        print(f"Directorio actual: {os.getcwd()}")
+        print(f"Contenido del directorio actual:")
+        os.system('ls -la')
         
-        current_dir = Path(__file__).parent
-        model_dir = current_dir
-        dataset_dir = current_dir.parent / "data" / "IR-Plag-Dataset"
-        model_dir.mkdir(exist_ok=True)
+        # Obtener rutas
+        try:
+            dataset_dir = get_dataset_path()
+            print(f"Usando dataset en: {dataset_dir}")
+        except FileNotFoundError as e:
+            print(f"Error al encontrar dataset: {e}")
+            return 1
         
-        if not dataset_dir.exists():
-            raise FileNotFoundError(f"No se encontró el directorio del dataset: {dataset_dir}")
-        
+        try:
+            model_dir = get_model_dir()
+            print(f"Usando directorio de modelo: {model_dir}")
+        except Exception as e:
+            print(f"Error al configurar directorio del modelo: {e}")
+            return 1
+            
         metrics_collector = MetricsCollector()
         
-        print(f"Cargando dataset desde: {dataset_dir}")
+        # Verificar existencia del dataset
+        if not dataset_dir.exists():
+            print(f"El directorio del dataset no existe: {dataset_dir}")
+            print("Contenido del directorio padre:")
+            parent_dir = dataset_dir.parent
+            if parent_dir.exists():
+                print(list(parent_dir.iterdir()))
+            return 1
+            
+        print("Cargando casos del dataset...")
         cases = load_dataset(dataset_dir)
-        
-        if not cases:
-            raise ValueError("No se encontraron casos en el dataset")
+        print(f"Casos encontrados: {len(cases)}")
         
         features = []
         labels = []
-        text_samples = []
         file_paths = []
         
         for case_idx, case in enumerate(cases, 1):
             try:
-                print(f"Procesando caso {case_idx}/{len(cases)}: {case}")
+                print(f"\nProcesando caso {case_idx}/{len(cases)}: {case}")
                 
-                case_metrics = {
-                    "total_files": 0,
-                    "plagiarized_files": 0,
-                    "non_plagiarized_files": 0,
-                    "avg_similarity": 0,
-                    "processing_time": 0
-                }
-                
-                metrics_collector.start_timing()
-                
+                # Procesar archivos originales
                 original_file = load_original_file(case)
+                if not original_file.exists():
+                    print(f"Archivo original no encontrado en {case}")
+                    continue
+                    
+                # Procesar archivos plagiarized y non-plagiarized
                 plagiarized_files = load_plagiarized_files(case)
                 non_plagiarized_files = load_non_plagiarized_files(case)
                 
-                if not original_file:
-                    print(f"Advertencia: No se encontró archivo original en el caso {case_idx}")
-                    continue
-                
-                case_metrics["plagiarized_files"] = len(plagiarized_files)
-                case_metrics["non_plagiarized_files"] = len(non_plagiarized_files)
-                case_metrics["total_files"] = len(plagiarized_files) + len(non_plagiarized_files)
-                
-                with open(original_file, 'r') as f:
-                    text_samples.append(f.read())
-                
-                similarities = []
+                # Calcular características
                 for file in plagiarized_files + non_plagiarized_files:
                     try:
                         token_overlap = calculate_token_overlap(original_file, file, metrics_collector)
                         ast_similarity = calculate_ast_similarity(original_file, file, metrics_collector)
                         
-                        with open(file, 'r') as f:
-                            text_samples.append(f.read())
-                        
                         features.append([token_overlap, ast_similarity])
                         label = get_label(original_file, file)
                         labels.append(label)
-                        similarities.append(label)
-                        file_paths.append(file)
+                        file_paths.append(str(file))
                     except Exception as e:
-                        print(f"Error procesando archivo {file}: {str(e)}")
+                        print(f"Error procesando archivo {file}: {e}")
                         continue
                 
-                if similarities:
-                    case_metrics["avg_similarity"] = float(np.mean(similarities))
-                case_metrics["processing_time"] = metrics_collector.stop_timing()
-                metrics_collector.case_metrics[f"case_{case_idx}"] = case_metrics
-                
             except Exception as e:
-                print(f"Error procesando caso {case_idx}: {str(e)}")
+                print(f"Error en caso {case}: {e}")
                 continue
         
         if not features or not labels:
-            raise ValueError("No se pudieron extraer características o etiquetas")
-        
-        # Entrenamiento y evaluación
+            print("No se pudieron extraer características. Abortando.")
+            return 1
+            
+        # Entrenamiento
         X = np.array(features)
         y = np.array(labels)
         
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         
-        print("Entrenando modelo...")
+        print("\nEntrenando modelo...")
         classifier = RandomForestRegressor(n_estimators=100, random_state=42)
         classifier.fit(X_train, y_train)
         
         print("Evaluando modelo...")
         y_pred = classifier.predict(X_test)
         
-        print("Generando reporte de métricas...")
-        metrics_report = generate_metrics_report(metrics_collector, y_test, y_pred, file_paths, classifier)
-        
         # Guardar modelo
         try:
-            classifier_path = model_dir / "classifier.joblib"
-            dump(classifier, classifier_path)
-            print(f"Modelo guardado en: {classifier_path}")
+            model_path = model_dir / "classifier.joblib"
+            print(f"Guardando modelo en {model_path}")
+            dump(classifier, model_path)
+            print("Modelo guardado exitosamente")
         except Exception as e:
             print(f"Error al guardar el modelo: {e}")
+            return 1
         
-        if "error" not in metrics_report:
-            print("\nResumen de métricas principales:")
-            print(f"MAE: {metrics_report['Model Performance']['Mean Absolute Error']:.4f}")
-            print(f"Accuracy: {metrics_report['Model Performance']['Accuracy']:.4f}")
-            print(f"F1 Score: {metrics_report['Model Performance']['F1 Score']:.4f}")
-            print(f"Tiempo promedio de procesamiento: {metrics_report['Execution Time']['Mean Processing Time']:.4f} segundos")
-        else:
-            print("\nError al generar métricas:", metrics_report["error"])
-        
-        print("\nReporte completo guardado en: metrics_report.json y metrics_report.txt")
+        # Guardar métricas
+        try:
+            metrics = {
+                "mae": float(mean_absolute_error(y_test, y_pred)),
+                "accuracy": float(accuracy_score(y_test > 50, y_pred > 50)),
+                "f1_score": float(f1_score(y_test > 50, y_pred > 50)),
+                "total_samples": len(y),
+                "training_samples": len(y_train),
+                "test_samples": len(y_test),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            metrics_path = model_dir / "metrics.json"
+            with open(metrics_path, 'w') as f:
+                json.dump(metrics, f, indent=2)
+            print(f"Métricas guardadas en {metrics_path}")
+            
+            # Imprimir métricas principales
+            print("\nMétricas del modelo:")
+            print(f"MAE: {metrics['mae']:.4f}")
+            print(f"Accuracy: {metrics['accuracy']:.4f}")
+            print(f"F1 Score: {metrics['f1_score']:.4f}")
+            
+        except Exception as e:
+            print(f"Error al guardar métricas: {e}")
+            return 1
+            
+        return 0
         
     except Exception as e:
-        print(f"Error general en la ejecución: {str(e)}")
+        print(f"Error general: {e}")
         return 1
-    
-    return 0
 
 if __name__ == "__main__":
     exit_code = main()
