@@ -1,10 +1,9 @@
-import os
 from pathlib import Path
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import (
     mean_absolute_error, accuracy_score, precision_score, recall_score, 
-    f1_score, confusion_matrix
+    f1_score, confusion_matrix, classification_report
 )
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer
@@ -13,7 +12,7 @@ import javalang
 from joblib import dump
 import time
 from datetime import datetime
-import json
+import pandas as pd
 
 class MetricsCollector:
     def __init__(self):
@@ -34,51 +33,9 @@ class MetricsCollector:
             return execution_time
         return 0
 
-def get_dataset_path():
-    # Intentar obtener la ruta del dataset desde la variable de entorno
-    dataset_path = os.getenv('DATASET_PATH')
-    if dataset_path:
-        return Path(dataset_path)
-    
-    # Si no está en la variable de entorno, intentar encontrarlo relativamente
-    current_dir = Path(__file__).parent
-    possible_paths = [
-        current_dir.parent / "data" / "IR-Plag-Dataset",
-        current_dir.parent.parent / "data" / "IR-Plag-Dataset",
-        Path("data/IR-Plag-Dataset"),
-        Path("../data/IR-Plag-Dataset"),
-        Path("../../data/IR-Plag-Dataset")
-    ]
-    
-    for path in possible_paths:
-        if path.exists():
-            return path
-    
-    raise FileNotFoundError("No se pudo encontrar el directorio del dataset")
-
-def get_model_dir():
-    # Intentar usar el directorio actual del script
-    current_dir = Path(__file__).parent
-    model_dir = current_dir
-    
-    # Si estamos en GitHub Actions, usar el directorio especificado
-    if os.getenv('GITHUB_ACTIONS'):
-        model_dir = Path('model')
-    
-    # Crear el directorio si no existe
-    model_dir.mkdir(exist_ok=True)
-    return model_dir
-
 def load_dataset(path):
-    try:
-        full_paths = list(path.iterdir())
-        print(f"Archivos encontrados en {path}:")
-        for p in full_paths:
-            print(f"  - {p}")
-        return full_paths
-    except Exception as e:
-        print(f"Error al cargar el dataset desde {path}: {e}")
-        raise
+    full_paths = list(path.iterdir())
+    return full_paths
 
 def load_original_file(path):
     original_file_path_directory = str(path) + "/original"
@@ -166,238 +123,181 @@ def get_label(original_file, file):
     return plagiarism_percentage
 
 def generate_metrics_report(metrics_collector, y_test, y_pred, test_files, model):
-    try:
-        # Convert continuous predictions to binary for classification metrics
-        threshold = 50  # Consider it plagiarism if similarity is > 50%
-        y_pred_binary = (y_pred > threshold).astype(int)
-        y_test_binary = (y_test > threshold).astype(int)
-        
-        report = {
-            "Model Performance": {
-                "Mean Absolute Error": float(mean_absolute_error(y_test, y_pred)),
-                "Accuracy": float(accuracy_score(y_test_binary, y_pred_binary)),
-                "Precision": float(precision_score(y_test_binary, y_pred_binary)),
-                "Recall": float(recall_score(y_test_binary, y_pred_binary)),
-                "F1 Score": float(f1_score(y_test_binary, y_pred_binary))
+    # Convert continuous predictions to binary for classification metrics
+    threshold = 50  # Consider it plagiarism if similarity is > 50%
+    y_pred_binary = (y_pred > threshold).astype(int)
+    y_test_binary = (y_test > threshold).astype(int)
+    
+    report = {
+        "Model Performance": {
+            "Mean Absolute Error": mean_absolute_error(y_test, y_pred),
+            "Accuracy": accuracy_score(y_test_binary, y_pred_binary),
+            "Precision": precision_score(y_test_binary, y_pred_binary),
+            "Recall": recall_score(y_test_binary, y_pred_binary),
+            "F1 Score": f1_score(y_test_binary, y_pred_binary),
+            "Confusion Matrix": confusion_matrix(y_test_binary, y_pred_binary).tolist()
+        },
+        "Analysis Methods": {
+            "Token Analysis": {
+                "Mean Similarity": np.mean(metrics_collector.token_similarities),
+                "Std Similarity": np.std(metrics_collector.token_similarities),
+                "Min Similarity": np.min(metrics_collector.token_similarities),
+                "Max Similarity": np.max(metrics_collector.token_similarities)
             },
-            "Analysis Methods": {
-                "Token Analysis": {
-                    "Mean Similarity": float(np.mean(metrics_collector.token_similarities)) if metrics_collector.token_similarities else 0.0,
-                    "Std Similarity": float(np.std(metrics_collector.token_similarities)) if metrics_collector.token_similarities else 0.0,
-                    "Min Similarity": float(np.min(metrics_collector.token_similarities)) if metrics_collector.token_similarities else 0.0,
-                    "Max Similarity": float(np.max(metrics_collector.token_similarities)) if metrics_collector.token_similarities else 0.0
-                },
-                "AST Analysis": {
-                    "Mean Similarity": float(np.mean(metrics_collector.ast_similarities)) if metrics_collector.ast_similarities else 0.0,
-                    "Std Similarity": float(np.std(metrics_collector.ast_similarities)) if metrics_collector.ast_similarities else 0.0,
-                    "Min Similarity": float(np.min(metrics_collector.ast_similarities)) if metrics_collector.ast_similarities else 0.0,
-                    "Max Similarity": float(np.max(metrics_collector.ast_similarities)) if metrics_collector.ast_similarities else 0.0
-                }
-            },
-            "Execution Time": {
-                "Mean Processing Time": float(np.mean(metrics_collector.execution_times)) if metrics_collector.execution_times else 0.0,
-                "Total Processing Time": float(np.sum(metrics_collector.execution_times)) if metrics_collector.execution_times else 0.0,
-                "Files Processed": len(metrics_collector.execution_times)
-            },
-            "Case Analysis": metrics_collector.case_metrics
-        }
+            "AST Analysis": {
+                "Mean Similarity": np.mean(metrics_collector.ast_similarities),
+                "Std Similarity": np.std(metrics_collector.ast_similarities),
+                "Min Similarity": np.min(metrics_collector.ast_similarities),
+                "Max Similarity": np.max(metrics_collector.ast_similarities)
+            }
+        },
+        "Execution Time": {
+            "Mean Processing Time": np.mean(metrics_collector.execution_times),
+            "Total Processing Time": np.sum(metrics_collector.execution_times),
+            "Files Processed": len(metrics_collector.execution_times)
+        },
+        "Case Analysis": metrics_collector.case_metrics
+    }
+    
+    # Save detailed report
+    report_path = Path(__file__).parent / "metrics_report.txt"
+    with open(report_path, "w") as f:
+        f.write(f"Plagiarism Detection Metrics Report\n")
+        f.write(f"Generated on: {datetime.now()}\n\n")
         
-        # Guardar reporte en formato JSON para mejor compatibilidad
-        import json
-        report_path = Path(__file__).parent / "metrics_report.json"
-        with open(report_path, "w") as f:
-            json.dump(report, f, indent=4)
+        # Model Performance
+        f.write("1. Model Performance Metrics\n")
+        f.write("-" * 30 + "\n")
+        f.write(f"Mean Absolute Error: {report['Model Performance']['Mean Absolute Error']:.4f}\n")
+        f.write(f"Accuracy: {report['Model Performance']['Accuracy']:.4f}\n")
+        f.write(f"Precision: {report['Model Performance']['Precision']:.4f}\n")
+        f.write(f"Recall: {report['Model Performance']['Recall']:.4f}\n")
+        f.write(f"F1 Score: {report['Model Performance']['F1 Score']:.4f}\n\n")
         
-        # También guardar una versión legible en texto
-        txt_report_path = Path(__file__).parent / "metrics_report.txt"
-        with open(txt_report_path, "w") as f:
-            f.write(f"Plagiarism Detection Metrics Report\n")
-            f.write(f"Generated on: {datetime.now()}\n\n")
-            
-            # Model Performance
-            f.write("1. Model Performance Metrics\n")
-            f.write("-" * 30 + "\n")
-            for metric, value in report["Model Performance"].items():
-                f.write(f"{metric}: {value:.4f}\n")
-            
-            # Analysis Methods
-            f.write("\n2. Analysis Methods Comparison\n")
-            f.write("-" * 30 + "\n")
-            for method, metrics in report["Analysis Methods"].items():
-                f.write(f"\n{method}:\n")
-                for metric, value in metrics.items():
-                    f.write(f"{metric}: {value:.4f}\n")
-            
-            # Execution Times
-            f.write("\n3. Execution Time Analysis\n")
-            f.write("-" * 30 + "\n")
-            for metric, value in report["Execution Time"].items():
-                if isinstance(value, float):
-                    f.write(f"{metric}: {value:.4f} seconds\n")
-                else:
-                    f.write(f"{metric}: {value}\n")
-            
-            # Case Analysis
-            f.write("\n4. Case-by-Case Analysis\n")
-            f.write("-" * 30 + "\n")
-            for case, metrics in report["Case Analysis"].items():
-                f.write(f"\nCase {case}:\n")
-                for metric_name, metric_value in metrics.items():
-                    if isinstance(metric_value, float):
-                        f.write(f"{metric_name}: {metric_value:.4f}\n")
-                    else:
-                        f.write(f"{metric_name}: {metric_value}\n")
+        # Confusion Matrix
+        f.write("Confusion Matrix:\n")
+        cm = report['Model Performance']['Confusion Matrix']
+        f.write(f"[[{cm[0][0]}, {cm[0][1]}]\n")
+        f.write(f" [{cm[1][0]}, {cm[1][1]}]]\n\n")
         
-        return report
-    except Exception as e:
-        print(f"Error al generar el reporte de métricas: {str(e)}")
-        # Crear un reporte mínimo en caso de error
-        error_report = {
-            "error": str(e),
-            "status": "failed",
-            "timestamp": str(datetime.now())
-        }
+        # Analysis Methods Comparison
+        f.write("2. Analysis Methods Comparison\n")
+        f.write("-" * 30 + "\n")
+        f.write("Token Analysis:\n")
+        for key, value in report['Analysis Methods']['Token Analysis'].items():
+            f.write(f"{key}: {value:.4f}\n")
+        f.write("\nAST Analysis:\n")
+        for key, value in report['Analysis Methods']['AST Analysis'].items():
+            f.write(f"{key}: {value:.4f}\n")
         
-        # Guardar el reporte de error
-        error_report_path = Path(__file__).parent / "error_report.json"
-        with open(error_report_path, "w") as f:
-            json.dump(error_report, f, indent=4)
+        # Execution Times
+        f.write("\n3. Execution Time Analysis\n")
+        f.write("-" * 30 + "\n")
+        f.write(f"Mean Processing Time: {report['Execution Time']['Mean Processing Time']:.4f} seconds\n")
+        f.write(f"Total Processing Time: {report['Execution Time']['Total Processing Time']:.4f} seconds\n")
+        f.write(f"Files Processed: {report['Execution Time']['Files Processed']}\n")
         
-        return error_report
+        # Case Analysis
+        f.write("\n4. Case-by-Case Analysis\n")
+        f.write("-" * 30 + "\n")
+        for case, metrics in report['Case Analysis'].items():
+            f.write(f"\nCase {case}:\n")
+            for metric_name, metric_value in metrics.items():
+                f.write(f"{metric_name}: {metric_value}\n")
+    
+    return report
 
 def main():
+    print("Iniciando entrenamiento del modelo Clonbusters con métricas...")
+    
+    current_dir = Path(__file__).parent
+    model_dir = current_dir
+    dataset_dir = current_dir.parent / "data" / "IR-Plag-Dataset"
+    model_dir.mkdir(exist_ok=True)
+    
+    metrics_collector = MetricsCollector()
+    
+    print(f"Cargando dataset desde: {dataset_dir}")
+    cases = load_dataset(dataset_dir)
+    
+    features = []
+    labels = []
+    text_samples = []
+    file_paths = []  # Para tracking
+
+    for case_idx, case in enumerate(cases, 1):
+        print(f"Procesando caso {case_idx}/{len(cases)}: {case}")
+        
+        case_metrics = {
+            "total_files": 0,
+            "plagiarized_files": 0,
+            "non_plagiarized_files": 0,
+            "avg_similarity": 0,
+            "processing_time": 0
+        }
+        
+        metrics_collector.start_timing()
+        
+        original_file = load_original_file(case)
+        plagiarized_files = load_plagiarized_files(case)
+        non_plagiarized_files = load_non_plagiarized_files(case)
+        
+        case_metrics["plagiarized_files"] = len(plagiarized_files)
+        case_metrics["non_plagiarized_files"] = len(non_plagiarized_files)
+        case_metrics["total_files"] = len(plagiarized_files) + len(non_plagiarized_files)
+        
+        with open(original_file, 'r') as f:
+            text_samples.append(f.read())
+        
+        similarities = []
+        for file in plagiarized_files + non_plagiarized_files:
+            token_overlap = calculate_token_overlap(original_file, file, metrics_collector)
+            ast_similarity = calculate_ast_similarity(original_file, file, metrics_collector)
+            
+            with open(file, 'r') as f:
+                text_samples.append(f.read())
+            
+            features.append([token_overlap, ast_similarity])
+            label = get_label(original_file, file)
+            labels.append(label)
+            similarities.append(label)
+            file_paths.append(file)
+        
+        case_metrics["avg_similarity"] = np.mean(similarities)
+        case_metrics["processing_time"] = metrics_collector.stop_timing()
+        metrics_collector.case_metrics[f"case_{case_idx}"] = case_metrics
+    
+    # Entrenamiento y evaluación
+    X = np.array(features)
+    y = np.array(labels)
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    print("Entrenando modelo...")
+    classifier = RandomForestRegressor(n_estimators=100, random_state=42)
+    classifier.fit(X_train, y_train)
+    
+    print("Evaluando modelo...")
+    y_pred = classifier.predict(X_test)
+    
+    # Generar reporte de métricas
+    print("Generando reporte de métricas...")
+    metrics_report = generate_metrics_report(metrics_collector, y_test, y_pred, file_paths, classifier)
+    
+    # Guardar modelo y vectorizador
     try:
-        print("Iniciando entrenamiento del modelo Clonbusters...")
-        print(f"Directorio actual: {os.getcwd()}")
-        print(f"Contenido del directorio actual:")
-        os.system('ls -la')
-        
-        # Obtener rutas
-        try:
-            dataset_dir = get_dataset_path()
-            print(f"Usando dataset en: {dataset_dir}")
-        except FileNotFoundError as e:
-            print(f"Error al encontrar dataset: {e}")
-            return 1
-        
-        try:
-            model_dir = get_model_dir()
-            print(f"Usando directorio de modelo: {model_dir}")
-        except Exception as e:
-            print(f"Error al configurar directorio del modelo: {e}")
-            return 1
-            
-        metrics_collector = MetricsCollector()
-        
-        # Verificar existencia del dataset
-        if not dataset_dir.exists():
-            print(f"El directorio del dataset no existe: {dataset_dir}")
-            print("Contenido del directorio padre:")
-            parent_dir = dataset_dir.parent
-            if parent_dir.exists():
-                print(list(parent_dir.iterdir()))
-            return 1
-            
-        print("Cargando casos del dataset...")
-        cases = load_dataset(dataset_dir)
-        print(f"Casos encontrados: {len(cases)}")
-        
-        features = []
-        labels = []
-        file_paths = []
-        
-        for case_idx, case in enumerate(cases, 1):
-            try:
-                print(f"\nProcesando caso {case_idx}/{len(cases)}: {case}")
-                
-                # Procesar archivos originales
-                original_file = load_original_file(case)
-                if not original_file.exists():
-                    print(f"Archivo original no encontrado en {case}")
-                    continue
-                    
-                # Procesar archivos plagiarized y non-plagiarized
-                plagiarized_files = load_plagiarized_files(case)
-                non_plagiarized_files = load_non_plagiarized_files(case)
-                
-                # Calcular características
-                for file in plagiarized_files + non_plagiarized_files:
-                    try:
-                        token_overlap = calculate_token_overlap(original_file, file, metrics_collector)
-                        ast_similarity = calculate_ast_similarity(original_file, file, metrics_collector)
-                        
-                        features.append([token_overlap, ast_similarity])
-                        label = get_label(original_file, file)
-                        labels.append(label)
-                        file_paths.append(str(file))
-                    except Exception as e:
-                        print(f"Error procesando archivo {file}: {e}")
-                        continue
-                
-            except Exception as e:
-                print(f"Error en caso {case}: {e}")
-                continue
-        
-        if not features or not labels:
-            print("No se pudieron extraer características. Abortando.")
-            return 1
-            
-        # Entrenamiento
-        X = np.array(features)
-        y = np.array(labels)
-        
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        
-        print("\nEntrenando modelo...")
-        classifier = RandomForestRegressor(n_estimators=100, random_state=42)
-        classifier.fit(X_train, y_train)
-        
-        print("Evaluando modelo...")
-        y_pred = classifier.predict(X_test)
-        
-        # Guardar modelo
-        try:
-            model_path = model_dir / "classifier.joblib"
-            print(f"Guardando modelo en {model_path}")
-            dump(classifier, model_path)
-            print("Modelo guardado exitosamente")
-        except Exception as e:
-            print(f"Error al guardar el modelo: {e}")
-            return 1
-        
-        # Guardar métricas
-        try:
-            metrics = {
-                "mae": float(mean_absolute_error(y_test, y_pred)),
-                "accuracy": float(accuracy_score(y_test > 50, y_pred > 50)),
-                "f1_score": float(f1_score(y_test > 50, y_pred > 50)),
-                "total_samples": len(y),
-                "training_samples": len(y_train),
-                "test_samples": len(y_test),
-                "timestamp": datetime.now().isoformat()
-            }
-            
-            metrics_path = model_dir / "metrics.json"
-            with open(metrics_path, 'w') as f:
-                json.dump(metrics, f, indent=2)
-            print(f"Métricas guardadas en {metrics_path}")
-            
-            # Imprimir métricas principales
-            print("\nMétricas del modelo:")
-            print(f"MAE: {metrics['mae']:.4f}")
-            print(f"Accuracy: {metrics['accuracy']:.4f}")
-            print(f"F1 Score: {metrics['f1_score']:.4f}")
-            
-        except Exception as e:
-            print(f"Error al guardar métricas: {e}")
-            return 1
-            
-        return 0
-        
+        classifier_path = model_dir / "classifier.joblib"
+        dump(classifier, classifier_path)
+        print(f"Modelo guardado en: {classifier_path}")
     except Exception as e:
-        print(f"Error general: {e}")
-        return 1
+        print(f"Error al guardar el modelo: {e}")
+    
+    print("\nResumen de métricas principales:")
+    print(f"MAE: {metrics_report['Model Performance']['Mean Absolute Error']:.4f}")
+    print(f"Accuracy: {metrics_report['Model Performance']['Accuracy']:.4f}")
+    print(f"F1 Score: {metrics_report['Model Performance']['F1 Score']:.4f}")
+    print(f"Tiempo promedio de procesamiento: {metrics_report['Execution Time']['Mean Processing Time']:.4f} segundos")
+    print("\nReporte completo guardado en: metrics_report.txt")
 
 if __name__ == "__main__":
-    exit_code = main()
-    exit(exit_code)
+    main()
