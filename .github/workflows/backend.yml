@@ -1,4 +1,3 @@
-# .github/workflows/backend.yml
 name: backend
 on:
   push:
@@ -12,10 +11,10 @@ jobs:
   train_deploy_model:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: '3.8'
         
@@ -25,20 +24,50 @@ jobs:
         pip install -r backend/requirements.txt
         pip install javalang scikit-learn numpy pandas joblib
         
-    - name: Create model directory
-      run: mkdir -p backend/model
+    - name: List initial directory structure
+      run: |
+        echo "Initial directory structure:"
+        ls -R
+        
+    - name: Create and verify backend directories
+      run: |
+        mkdir -p backend/data/IR-Plag-Dataset
+        mkdir -p backend/model
+        echo "Created directories structure:"
+        ls -R backend/
+        
+    # Asumiendo que el dataset está en el repositorio en la carpeta correcta
+    - name: Verify dataset location
+      run: |
+        echo "Dataset location check:"
+        if [ -d "backend/data/IR-Plag-Dataset" ]; then
+          echo "Dataset directory exists"
+          ls -la backend/data/IR-Plag-Dataset
+        else
+          echo "Dataset directory not found"
+          exit 1
+        fi
         
     - name: Train model
       run: |
         cd backend
+        echo "Current directory: $(pwd)"
+        echo "Contents of current directory:"
+        ls -la
         python model/train.py
       env:
-        DATASET_PATH: "data/IR-Plag-Dataset/"
+        DATASET_PATH: "data/IR-Plag-Dataset"
+        
+    - name: Verify model artifacts
+      run: |
+        echo "Checking model artifacts..."
+        ls -la backend/model/
         
     - name: Save model artifacts
-      run: |
-        mkdir -p model_artifacts
-        cp backend/model/*.joblib model_artifacts/ || echo "No joblib files found"
-        ls -la backend/model/
-        ls -la model_artifacts/
-
+      uses: actions/upload-artifact@v3
+      with:
+        name: model-artifacts
+        path: |
+          backend/model/*.joblib
+          backend/model/*.json
+        retention-days: 90
