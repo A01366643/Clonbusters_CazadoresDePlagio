@@ -10,6 +10,7 @@ body {
 .token.prolog,
 .token.doctype,
 .token.cdata {
+  
   color: #8e908c;
 }
 
