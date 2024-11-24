@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, FileText, AlertCircle, AlertTriangle, Check } from 'lucide-react';
+import CodeViewer from './CodeViewer';
 
 // Componente ResultsDisplay integrado
 const ResultsDisplay = ({ results }) => {
@@ -168,11 +169,22 @@ const PlagiarismChecker = () => {
   const API_URL = import.meta.env.VITE_API_URL;
   
   const analyzeCode = async () => {
+    if (!originalFile || !comparisonFile) {
+      setError('Por favor, selecciona ambos archivos');
+      return;
+    }
+  
     const formData = new FormData();
     formData.append('original', originalFile);
-    formData.append('comparison_file', comparisonFile); // Cambiado para un solo archivo
+    formData.append('comparison_file', comparisonFile);
   
     try {
+      setLoading(true);
+      
+      // Leer el contenido de los archivos primero
+      const originalContent = await readFileContent(originalFile);
+      const comparisonContent = await readFileContent(comparisonFile);
+  
       const response = await fetch(`${API_URL}/api/analyze`, {
         method: 'POST',
         body: formData,
@@ -186,25 +198,36 @@ const PlagiarismChecker = () => {
       const data = await response.json();
       console.log('Datos recibidos del backend:', data);
       
-      const tokenSim = parseFloat(data.token_similarity);
-      const astSim = parseFloat(data.ast_similarity);
-      const overallScore = (tokenSim + astSim) / 2;
-      
-      const mappedResults = {
-        tokenOverlap: tokenSim,
-        astSimilarity: astSim,
-        overallPlagiarismScore: overallScore,
-        isPlagiarism: overallScore > 70 
+      // Asegurarnos de que tenemos el código incluso si el backend no lo envía
+      const transformedResults = {
+        ...data,
+        tokenOverlap: data.token_similarity,
+        astSimilarity: data.ast_similarity,
+        overallPlagiarismScore: data.overall_score,
+        isPlagiarism: data.is_plagiarism,
+        original_code: data.original_code || originalContent,
+        comparison_code: data.comparison_code || comparisonContent,
+        similar_segments: data.similar_segments || []
       };
-  
-      console.log('Resultados mapeados:', mappedResults);
-      setResults(mappedResults);
+      
+      console.log('Resultados transformados:', transformedResults);
+      setResults(transformedResults);
     } catch (error) {
       console.error('Error:', error);
       setError('Error al analizar el código');
     } finally {
       setLoading(false);
     }
+  };
+  
+  // Función auxiliar para leer el contenido del archivo
+  const readFileContent = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = (e) => reject(e);
+      reader.readAsText(file);
+    });
   };
 
   return (
@@ -342,7 +365,16 @@ const PlagiarismChecker = () => {
         </button>
       </div>
 
-      {results && <ResultsDisplay results={results} />}
+      {results && (
+        <div className="space-y-8">
+          <ResultsDisplay results={results} />
+          <CodeViewer 
+            originalCode={results.original_code || ''}
+            comparisonCode={results.comparison_code || ''}
+            similarSegments={results.similar_segments || []}
+          />
+        </div>
+      )}
     </div>
   );
 };
