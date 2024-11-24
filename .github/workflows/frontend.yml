@@ -25,6 +25,10 @@ jobs:
       - name: Install dependencies
         working-directory: ./frontend
         run: npm install
+
+      - name: Install prismjs
+        working-directory: ./frontend
+        run: npm install prismjs
       
       - name: Build
         working-directory: ./frontend
