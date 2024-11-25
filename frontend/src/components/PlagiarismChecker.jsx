@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, FileText, AlertCircle, AlertTriangle, Check } from 'lucide-react';
+import CodeViewer from './CodeViewer';
 
-// Componente ResultsDisplay integrado
 const ResultsDisplay = ({ results }) => {
   if (!results) return null;
   
@@ -84,10 +84,9 @@ const ResultsDisplay = ({ results }) => {
   );
 };
 
-// Componente principal PlagiarismChecker
 const PlagiarismChecker = () => {
   const [originalFile, setOriginalFile] = useState(null);
-  const [comparisonFile, setComparisonFile] = useState(null); // Cambiado de array a single file
+  const [comparisonFile, setComparisonFile] = useState(null);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -96,6 +95,8 @@ const PlagiarismChecker = () => {
   
   const originalInputRef = useRef(null);
   const comparisonInputRef = useRef(null);
+
+  const API_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
     const checkApiStatus = async () => {
@@ -164,15 +165,32 @@ const PlagiarismChecker = () => {
   const removeComparisonFile = () => {
     setComparisonFile(null);
   };
-
-  const API_URL = import.meta.env.VITE_API_URL;
   
+  const readFileContent = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = (e) => reject(e);
+      reader.readAsText(file);
+    });
+  };
+
   const analyzeCode = async () => {
+    if (!originalFile || !comparisonFile) {
+      setError('Por favor, selecciona ambos archivos');
+      return;
+    }
+  
     const formData = new FormData();
     formData.append('original', originalFile);
-    formData.append('comparison_file', comparisonFile); // Cambiado para un solo archivo
+    formData.append('comparison_file', comparisonFile);
   
     try {
+      setLoading(true);
+      
+      const originalContent = await readFileContent(originalFile);
+      const comparisonContent = await readFileContent(comparisonFile);
+  
       const response = await fetch(`${API_URL}/api/analyze`, {
         method: 'POST',
         body: formData,
@@ -184,21 +202,20 @@ const PlagiarismChecker = () => {
       }
   
       const data = await response.json();
-      console.log('Datos recibidos del backend:', data);
       
-      const tokenSim = parseFloat(data.token_similarity);
-      const astSim = parseFloat(data.ast_similarity);
-      const overallScore = (tokenSim + astSim) / 2;
-      
-      const mappedResults = {
-        tokenOverlap: tokenSim,
-        astSimilarity: astSim,
-        overallPlagiarismScore: overallScore,
-        isPlagiarism: overallScore > 70 
+      const transformedResults = {
+        ...data,
+        tokenOverlap: data.token_similarity,
+        astSimilarity: data.ast_similarity,
+        overallPlagiarismScore: data.overall_score,
+        isPlagiarism: data.is_plagiarism,
+        original_code: data.original_code || originalContent,
+        comparison_code: data.comparison_code || comparisonContent
       };
-  
-      console.log('Resultados mapeados:', mappedResults);
-      setResults(mappedResults);
+
+      console.log('Debugger', "hola");
+      
+      setResults(transformedResults);
     } catch (error) {
       console.error('Error:', error);
       setError('Error al analizar el código');
@@ -216,7 +233,6 @@ const PlagiarismChecker = () => {
         </div>
       )}
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Área para código original */}
         <div>
           <h2 className="text-xl font-semibold mb-4">Código Original</h2>
           <div
@@ -266,7 +282,6 @@ const PlagiarismChecker = () => {
           </div>
         </div>
         
-        {/* Área para código a comparar */}
         <div>
           <h2 className="text-xl font-semibold mb-4">Código a Comparar</h2>
           <div
@@ -342,7 +357,15 @@ const PlagiarismChecker = () => {
         </button>
       </div>
 
-      {results && <ResultsDisplay results={results} />}
+      {results && (
+        <div className="space-y-8">
+          <ResultsDisplay results={results} />
+          <CodeViewer 
+            originalCode={results.original_code || ''}
+            comparisonCode={results.comparison_code || ''}
+          />
+        </div>
+      )}
     </div>
   );
 };

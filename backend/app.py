@@ -155,15 +155,14 @@ async def analyze_code(
         ast_similarity = calculate_ast_similarity(original_content, comparison_content)
         semantic_similarity = calculate_semantic_similarity(original_content, comparison_content)
         
-        # Calcular puntuación global (puedes ajustar los pesos)
+        # Calcular puntuación global 
         overall_score = (
-            token_similarity * 0.3 +
-            ast_similarity * 0.3 +
-            semantic_similarity * 0.4
+            ast_similarity * 0.7 +
+            token_similarity * 0.3
         )
         
         # Determinar si es plagio basado en un umbral
-        is_plagiarism = overall_score > 70  # Puedes ajustar este umbral
+        is_plagiarism = overall_score > 70  
         
         return {
             "filename": comparison_file.filename,
