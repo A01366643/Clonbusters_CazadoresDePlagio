@@ -12,7 +12,7 @@ function App() {
         </div>
       </nav>
       
-      <main className="max-w-6xl mx-auto mt-8">
+      <main className="max-w-7xl mx-auto mt-8">
         <PlagiarismChecker />
       </main>
       
