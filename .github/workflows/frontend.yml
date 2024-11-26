@@ -31,7 +31,7 @@ jobs:
         run: npm run build
         env:
           VITE_BASE_URL: '.'
-          VITE_API_URL: 'https://clonbusters-backend.onrender.com'  # Añade esta línea
+          VITE_API_URL: 'http://localhost:8000'  # Añade esta línea
       
       - name: Setup Pages
         uses: actions/configure-pages@v3
