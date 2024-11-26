@@ -213,7 +213,7 @@ const PlagiarismChecker = () => {
         comparison_code: data.comparison_code || comparisonContent
       };
 
-      console.log('Debugger', "hola");
+      console.log('Debugger', "holaaaaa");
       
       setResults(transformedResults);
     } catch (error) {
@@ -237,11 +237,12 @@ const PlagiarismChecker = () => {
           <h2 className="text-xl font-semibold mb-4">Código Original</h2>
           <div
             className={`
-              w-full h-64 border-2 border-dashed rounded-lg
+              w-full h-40 border-2 border-dashed rounded-lg
               ${dragActive.original ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}
               transition-colors duration-200 ease-in-out
               flex flex-col items-center justify-center
               cursor-pointer
+              min-h-[160px] max-h-[160px] 
             `}
             onClick={() => originalInputRef.current?.click()}
             onDragEnter={e => handleDrag(e, 'original')}
@@ -286,11 +287,12 @@ const PlagiarismChecker = () => {
           <h2 className="text-xl font-semibold mb-4">Código a Comparar</h2>
           <div
             className={`
-              w-full h-64 border-2 border-dashed rounded-lg
+              w-full h-40 border-2 border-dashed rounded-lg
               ${dragActive.comparison ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}
               transition-colors duration-200 ease-in-out
               flex flex-col items-center justify-center
               cursor-pointer
+              min-h-[160px] max-h-[160px]  
             `}
             onClick={() => comparisonInputRef.current?.click()}
             onDragEnter={e => handleDrag(e, 'comparison')}
