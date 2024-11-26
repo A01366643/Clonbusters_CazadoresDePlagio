@@ -15,7 +15,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://a01366643.github.io",
-        "http://localhost:5173"
+        "http://localhost:5173",
+        "http://localhost:8000",
+        "https://clonbusters-backend.onrender.com",
+        "http://localhost:3000"
     ],
     allow_credentials=True,
     allow_methods=["*"],
